@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import AuthGate from "@/components/AuthGate";
 import "./globals.css";
 
 const inter = Inter({
@@ -10,7 +11,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Course Viewer",
   description:
-    "Personal local-only library for long-form YouTube videos and courses.",
+    "Personal library for tracking long-form YouTube videos and courses.",
 };
 
 export default function RootLayout({
@@ -18,7 +19,9 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
-      <body className="min-h-full bg-stone-100 text-zinc-900">{children}</body>
+      <body className="min-h-full bg-stone-100 text-zinc-900">
+        <AuthGate>{children}</AuthGate>
+      </body>
     </html>
   );
 }

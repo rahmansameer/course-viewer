@@ -13,7 +13,7 @@ type AddVideoModalProps = {
     youtubeUrl: string;
     title: string;
     description: string;
-  }) => void;
+  }) => Promise<void>;
 };
 
 export default function AddVideoModal({
@@ -28,6 +28,7 @@ export default function AddVideoModal({
     initialVideo?.description ?? "",
   );
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -44,7 +45,7 @@ export default function AddVideoModal({
     return null;
   }
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const trimmedUrl = youtubeUrl.trim();
@@ -58,11 +59,23 @@ export default function AddVideoModal({
     const nextTitle = title.trim();
     const nextDescription = description.trim();
 
-    onSave({
-      youtubeUrl: trimmedUrl,
-      title: nextTitle || "Untitled course",
-      description: nextDescription,
-    });
+    setSaving(true);
+    setError("");
+    try {
+      await onSave({
+        youtubeUrl: trimmedUrl,
+        title: nextTitle || "Untitled course",
+        description: nextDescription,
+      });
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "The video could not be saved.",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -143,9 +156,14 @@ export default function AddVideoModal({
             </button>
             <button
               type="submit"
+              disabled={saving}
               className="cursor-pointer rounded-[8px] bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-700"
             >
-              {initialVideo ? "Save changes" : "Add video"}
+              {saving
+                ? "Saving..."
+                : initialVideo
+                  ? "Save changes"
+                  : "Add video"}
             </button>
           </div>
         </form>

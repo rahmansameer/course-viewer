@@ -5,26 +5,61 @@ import { faPlus } from "@fortawesome/free-solid-svg-icons";
 import { useEffect, useState } from "react";
 
 import AddVideoModal from "@/components/AddVideoModal";
+import { AccountButton, useAuth } from "@/components/AuthGate";
 import VideoCard from "@/components/VideoCard";
 import {
   deleteVideo,
-  readVideos,
+  loadVideos,
+  saveVideo,
   type VideoRecord,
-  writeVideos,
 } from "@/lib/storage";
 import { extractVideoId, getVideoThumbnail } from "@/lib/youtube";
 
 export default function HomePage() {
+  const { user } = useAuth();
   const [videos, setVideos] = useState<VideoRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<VideoRecord | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VideoRecord | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    setVideos(readVideos());
-  }, []);
+    if (!user) {
+      return;
+    }
 
-  const handleSave = ({
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+    void loadVideos(user.id)
+      .then((loadedVideos) => {
+        if (!cancelled) {
+          setVideos(loadedVideos);
+        }
+      })
+      .catch((loadError: unknown) => {
+        if (!cancelled) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Your course library could not be loaded.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const handleSave = async ({
     youtubeUrl,
     title,
     description,
@@ -32,14 +67,13 @@ export default function HomePage() {
     youtubeUrl: string;
     title: string;
     description: string;
-  }) => {
+  }): Promise<void> => {
     const videoId = extractVideoId(youtubeUrl);
     if (!videoId) {
-      return;
+      throw new Error("Please paste a valid YouTube single-video URL.");
     }
 
-    const savedVideos = readVideos();
-    const existing = savedVideos.find((video) => video.id === videoId);
+    const existing = videos.find((video) => video.id === videoId);
     const now = new Date().toISOString();
 
     const nextVideo: VideoRecord = existing
@@ -65,12 +99,16 @@ export default function HomePage() {
           completed: false,
         };
 
-    const updatedVideos = existing
-      ? savedVideos.map((video) => (video.id === videoId ? nextVideo : video))
-      : [nextVideo, ...savedVideos];
-
-    writeVideos(updatedVideos);
-    setVideos(updatedVideos);
+    if (!user) {
+      throw new Error("Sign in to save videos.");
+    }
+    await saveVideo(user.id, nextVideo);
+    setVideos((current) =>
+      existing
+        ? current.map((video) => (video.id === videoId ? nextVideo : video))
+        : [nextVideo, ...current],
+    );
+    setError("");
     setSelectedVideo(null);
     setIsModalOpen(false);
   };
@@ -82,14 +120,28 @@ export default function HomePage() {
     }
   };
 
-  const confirmDelete = () => {
-    if (!deleteTarget) {
+  const confirmDelete = async () => {
+    if (!deleteTarget || !user) {
       return;
     }
 
-    const nextVideos = deleteVideo(deleteTarget.id);
-    setVideos(nextVideos);
-    setDeleteTarget(null);
+    setDeleting(true);
+    try {
+      await deleteVideo(user.id, deleteTarget.id);
+      setVideos((current) =>
+        current.filter((video) => video.id !== deleteTarget.id),
+      );
+      setDeleteTarget(null);
+      setError("");
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "The video could not be deleted.",
+      );
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -98,21 +150,33 @@ export default function HomePage() {
         <h1 className="text-3xl font-semibold tracking-tight text-zinc-900">
           Course Viewer
         </h1>
-
-        <button
-          type="button"
-          onClick={() => {
-            setSelectedVideo(null);
-            setIsModalOpen(true);
-          }}
-          className="flex items-center gap-2 rounded-[8px] bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-700"
-        >
-          <FontAwesomeIcon icon={faPlus} className="text-xs" />
-          <span>Add Video</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedVideo(null);
+              setIsModalOpen(true);
+            }}
+            className="flex items-center gap-2 rounded-[8px] bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-700"
+          >
+            <FontAwesomeIcon icon={faPlus} className="text-xs" />
+            <span>Add Video</span>
+          </button>
+          <AccountButton />
+        </div>
       </div>
 
-      {videos.length === 0 ? (
+      {error ? (
+        <p role="alert" className="mb-5 rounded-xl bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </p>
+      ) : null}
+
+      {loading ? (
+        <p className="py-12 text-center text-sm text-zinc-600">
+          Loading your courses...
+        </p>
+      ) : error && videos.length === 0 ? null : videos.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-10 text-center shadow-sm">
           <p className="text-lg font-medium text-zinc-700">
             No saved videos yet.
@@ -153,22 +217,24 @@ export default function HomePage() {
             </h2>
             <p className="mt-2 text-sm text-zinc-600">
               “{deleteTarget.title}” and its saved progress and notes will be
-              removed from this device.
+              removed from your account.
             </p>
             <div className="mt-6 flex justify-end gap-3">
               <button
                 type="button"
+                disabled={deleting}
                 onClick={() => setDeleteTarget(null)}
-                className="rounded-[8px] border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+                className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={deleting}
                 onClick={confirmDelete}
-                className="rounded-[8px] bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700"
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700"
               >
-                Delete video
+                {deleting ? "Deleting..." : "Delete video"}
               </button>
             </div>
           </div>

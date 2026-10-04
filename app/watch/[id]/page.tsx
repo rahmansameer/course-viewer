@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { AccountButton, useAuth } from "@/components/AuthGate";
 import ProgressBar from "@/components/ProgressBar";
 import YouTubePlayer from "@/components/YouTubePlayer";
 import { getVideo, updateVideo, type VideoRecord } from "@/lib/storage";
@@ -14,8 +15,14 @@ import { formatDuration, formatTime, getProgressPercent } from "@/lib/youtube";
 export default function WatchPage() {
   const params = useParams<{ id: string }>();
   const videoId = typeof params?.id === "string" ? params.id : "";
+  const { user } = useAuth();
   const [video, setVideo] = useState<VideoRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const videoRef = useRef<VideoRecord | null>(null);
+  const progressSaveRef = useRef<Promise<void>>(Promise.resolve());
+  const notesSaveTimeoutRef = useRef<number | null>(null);
+  const pendingNotesRef = useRef<string | null>(null);
   const lastSavedSnapshotRef = useRef<{
     currentTime: number;
     duration: number | null;
@@ -23,14 +30,45 @@ export default function WatchPage() {
 
   useEffect(() => {
     lastSavedSnapshotRef.current = null;
-    const found = getVideo(videoId);
-    setVideo(found);
-    videoRef.current = found;
-  }, [videoId]);
+    videoRef.current = null;
+    setVideo(null);
+    setLoading(true);
+    setError("");
+    if (!user) {
+      return;
+    }
+
+    let cancelled = false;
+    void getVideo(user.id, videoId)
+      .then((found) => {
+        if (!cancelled) {
+          setVideo(found);
+          videoRef.current = found;
+        }
+      })
+      .catch((loadError: unknown) => {
+        if (!cancelled) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "This video could not be loaded.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [videoId, user]);
 
   const saveProgress = useCallback(
     (currentTime: number, duration: number) => {
-      if (!videoRef.current) {
+      if (!videoRef.current || !user) {
         return;
       }
 
@@ -80,13 +118,41 @@ export default function WatchPage() {
         return nextVideo;
       });
 
-      updateVideo(videoId, {
-        currentTime: safeCurrentTime,
-        duration: safeDuration,
-        completed: isCompleted,
-      });
+      progressSaveRef.current = progressSaveRef.current
+        .then(() =>
+          updateVideo(user.id, videoId, {
+            currentTime: safeCurrentTime,
+            duration: safeDuration,
+            completed: isCompleted,
+          }),
+        )
+        .catch((saveError: unknown) => {
+          setError(
+            saveError instanceof Error
+              ? saveError.message
+              : "Playback progress could not be saved.",
+          );
+        });
     },
-    [videoId],
+    [user, videoId],
+  );
+
+  const persistNotes = useCallback(
+    (notes: string) => {
+      if (!user) {
+        return;
+      }
+      void updateVideo(user.id, videoId, { notes }).catch(
+        (saveError: unknown) => {
+          setError(
+            saveError instanceof Error
+              ? saveError.message
+              : "Your notes could not be saved.",
+          );
+        },
+      );
+    },
+    [user, videoId],
   );
 
   const updateNotes = (notes: string) => {
@@ -97,16 +163,51 @@ export default function WatchPage() {
     const nextVideo = { ...videoRef.current, notes };
     setVideo(nextVideo);
     videoRef.current = nextVideo;
-    updateVideo(videoId, { notes });
+    pendingNotesRef.current = notes;
+    if (notesSaveTimeoutRef.current !== null) {
+      window.clearTimeout(notesSaveTimeoutRef.current);
+    }
+    notesSaveTimeoutRef.current = window.setTimeout(() => {
+      pendingNotesRef.current = null;
+      notesSaveTimeoutRef.current = null;
+      persistNotes(notes);
+    }, 500);
   };
+
+  useEffect(
+    () => () => {
+      if (notesSaveTimeoutRef.current !== null) {
+        window.clearTimeout(notesSaveTimeoutRef.current);
+        notesSaveTimeoutRef.current = null;
+        if (pendingNotesRef.current !== null) {
+          persistNotes(pendingNotesRef.current);
+          pendingNotesRef.current = null;
+        }
+      }
+    },
+    [persistNotes],
+  );
+
+  if (loading) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-3xl items-center justify-center px-4">
+        <p className="text-sm text-zinc-600">Loading your video...</p>
+      </main>
+    );
+  }
 
   if (!video) {
     return (
       <main className="mx-auto flex min-h-screen max-w-3xl items-center justify-center px-4">
         <div className="w-full rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm">
           <p className="text-xl font-semibold text-zinc-900">
-            Video not found.
+            {error ? "Could not load video." : "Video not found."}
           </p>
+          {error ? (
+            <p role="alert" className="mt-2 text-sm text-red-600">
+              {error}
+            </p>
+          ) : null}
           <Link
             href="/"
             className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-zinc-700 hover:text-zinc-900"
@@ -123,13 +224,16 @@ export default function WatchPage() {
 
   return (
     <main className="mx-auto min-h-screen max-w-5xl px-4 py-8 md:px-8">
-      <Link
-        href="/"
-        className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-zinc-700 hover:text-zinc-900"
-      >
-        <FontAwesomeIcon icon={faArrowLeft} className="text-[12px]" />
-        <span>Back Home</span>
-      </Link>
+      <header className="mb-8 flex items-center justify-between border-b border-zinc-200/80 pb-5">
+        <Link
+          href="/"
+          className="flex items-center gap-2 text-sm font-medium text-zinc-700 transition hover:text-zinc-950"
+        >
+          <FontAwesomeIcon icon={faArrowLeft} className="text-[12px]" />
+          <span>Back to courses</span>
+        </Link>
+        <AccountButton />
+      </header>
 
       <div className="mb-6">
         <h1 className="text-3xl font-semibold tracking-tight text-zinc-900">
@@ -142,6 +246,11 @@ export default function WatchPage() {
         currentTime={video.currentTime}
         onTimeUpdate={saveProgress}
       />
+      {error ? (
+        <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </p>
+      ) : null}
 
       <div className="mt-5 space-y-4">
         <div className="flex items-center justify-between gap-3 text-sm text-zinc-700">
