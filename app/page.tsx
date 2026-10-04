@@ -1,11 +1,10 @@
 "use client";
 
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPlus } from "@fortawesome/free-solid-svg-icons";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import AppHeader from "@/components/AppHeader";
 import AddVideoModal from "@/components/AddVideoModal";
-import { AccountButton, useAuth } from "@/components/AuthGate";
+import { useAuth } from "@/components/AuthGate";
 import VideoCard from "@/components/VideoCard";
 import {
   cacheVideos,
@@ -208,25 +207,12 @@ export default function HomePage() {
 
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-4 py-8 md:px-8">
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <h1 className="text-3xl font-semibold tracking-tight text-zinc-900">
-          Course Viewer
-        </h1>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedVideo(null);
-              setIsModalOpen(true);
-            }}
-            className="flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-700"
-          >
-            <FontAwesomeIcon icon={faPlus} className="text-xs" />
-            <span>Add Video</span>
-          </button>
-          <AccountButton />
-        </div>
-      </div>
+      <AppHeader
+        onAddVideo={() => {
+          setSelectedVideo(null);
+          setIsModalOpen(true);
+        }}
+      />
 
       {error ? (
         <p role="alert" className="mb-5 rounded-xl bg-red-50 p-3 text-sm text-red-700">
