@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 import { type VideoRecord } from "@/lib/storage";
 import { formatDuration, formatTime, getProgressPercent } from "@/lib/youtube";
@@ -14,7 +14,6 @@ type VideoCardProps = {
 };
 
 export default function VideoCard({ video, onEdit, onDelete }: VideoCardProps) {
-  const router = useRouter();
   const percent = getProgressPercent(video.currentTime, video.duration);
 
   return (
@@ -22,7 +21,7 @@ export default function VideoCard({ video, onEdit, onDelete }: VideoCardProps) {
       <div className="absolute right-3 top-3 z-10 flex gap-2">
         <button
           type="button"
-          className="cursor-pointer rounded-[8px] border border-zinc-200 bg-white px-2 py-1 text-[10px] font-medium text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-50"
+          className="cursor-pointer rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[10px] font-medium text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-50"
           onClick={(event) => {
             event.stopPropagation();
             onEdit(video);
@@ -32,7 +31,7 @@ export default function VideoCard({ video, onEdit, onDelete }: VideoCardProps) {
         </button>
         <button
           type="button"
-          className="cursor-pointer rounded-[8px] border border-zinc-200 bg-white px-2 py-1 text-[10px] font-medium text-zinc-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+          className="cursor-pointer rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[10px] font-medium text-zinc-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
           onClick={(event) => {
             event.stopPropagation();
             onDelete(video.id);
@@ -42,17 +41,9 @@ export default function VideoCard({ video, onEdit, onDelete }: VideoCardProps) {
         </button>
       </div>
 
-      <div
-        className="cursor-pointer"
-        onClick={() => router.push(`/watch/${video.id}`)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            router.push(`/watch/${video.id}`);
-          }
-        }}
+      <Link
+        href={`/watch/${video.id}`}
+        className="block cursor-pointer"
       >
         <div className="relative aspect-video overflow-hidden bg-zinc-200">
           {video.thumbnail ? (
@@ -97,7 +88,7 @@ export default function VideoCard({ video, onEdit, onDelete }: VideoCardProps) {
             {video.currentTime > 0 ? "Continue" : "Watch"}
           </div>
         </div>
-      </div>
+      </Link>
     </div>
   );
 }

@@ -1,6 +1,74 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+type YouTubePlayerInstance = {
+  destroy?: () => void;
+  getCurrentTime?: () => number;
+  getDuration?: () => number;
+  seekTo?: (seconds: number, allowSeekAhead: boolean) => void;
+};
+
+type YouTubePlayerOptions = {
+  videoId: string;
+  height?: string | number;
+  width?: string | number;
+  playerVars?: Record<string, number | boolean | string>;
+  events?: {
+    onReady?: (event: { target: YouTubePlayerInstance }) => void;
+    onStateChange?: (event: { data: number }) => void;
+    onError?: (event: { data: number }) => void;
+  };
+};
+
+let youtubeApiPromise: Promise<void> | null = null;
+
+function loadYouTubeIframeApi(): Promise<void> {
+  if (window.YT?.Player) {
+    return Promise.resolve();
+  }
+  if (youtubeApiPromise) {
+    return youtubeApiPromise;
+  }
+
+  youtubeApiPromise = new Promise<void>((resolve, reject) => {
+    const existingScript = document.querySelector<HTMLScriptElement>(
+      'script[src="https://www.youtube.com/iframe_api"]',
+    );
+    const previousCallback = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      try {
+        previousCallback?.();
+        if (!window.YT?.Player) {
+          throw new Error("The YouTube player could not be initialized.");
+        }
+        resolve();
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    const script = existingScript ?? document.createElement("script");
+    script.addEventListener(
+      "error",
+      () => {
+        youtubeApiPromise = null;
+        reject(new Error("The YouTube player API could not be loaded."));
+      },
+      { once: true },
+    );
+    if (!existingScript) {
+      script.src = "https://www.youtube.com/iframe_api";
+      script.async = true;
+      document.head.appendChild(script);
+    }
+  }).catch((error: unknown) => {
+    youtubeApiPromise = null;
+    throw error;
+  });
+
+  return youtubeApiPromise;
+}
 
 type YouTubePlayerProps = {
   videoId: string;
@@ -13,23 +81,8 @@ declare global {
     YT?: {
       Player: new (
         elementId: string | HTMLElement,
-        options: {
-          videoId: string;
-          height?: string | number;
-          width?: string | number;
-          playerVars?: Record<string, number | boolean | string>;
-          events?: {
-            onReady?: (event: {
-              target: {
-                seekTo: (seconds: number, allowSeekAhead: boolean) => void;
-                playVideo: () => void;
-              };
-            }) => void;
-            onStateChange?: (event: { data: number }) => void;
-            onError?: (event: { data: number }) => void;
-          };
-        },
-      ) => unknown;
+        options: YouTubePlayerOptions,
+      ) => YouTubePlayerInstance;
       PlayerState?: {
         ENDED: number;
         PLAYING: number;
@@ -46,9 +99,24 @@ export default function YouTubePlayer({
   onTimeUpdate,
 }: YouTubePlayerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const playerRef = useRef<any>(null);
+  const playerRef = useRef<YouTubePlayerInstance | null>(null);
+  const readyRef = useRef(false);
   const saveIntervalRef = useRef<number | null>(null);
   const onTimeUpdateRef = useRef(onTimeUpdate);
+  const currentTimeRef = useRef(currentTime);
+  const [playerError, setPlayerError] = useState("");
+  currentTimeRef.current = currentTime;
+
+  const flushProgress = useCallback(() => {
+    const player = playerRef.current;
+    if (!readyRef.current || !player?.getCurrentTime) {
+      return;
+    }
+
+    const current = player.getCurrentTime();
+    const duration = player.getDuration?.() ?? 0;
+    onTimeUpdateRef.current(current, duration);
+  }, []);
 
   useEffect(() => {
     onTimeUpdateRef.current = onTimeUpdate;
@@ -56,19 +124,11 @@ export default function YouTubePlayer({
 
   useEffect(() => {
     let cancelled = false;
+    setPlayerError("");
 
     const createPlayer = () => {
-      if (
-        !containerRef.current ||
-        typeof window === "undefined" ||
-        !window.YT ||
-        !window.YT.Player
-      ) {
+      if (!containerRef.current || !window.YT?.Player) {
         return;
-      }
-
-      if (playerRef.current) {
-        playerRef.current.destroy();
       }
 
       playerRef.current = new window.YT.Player(containerRef.current, {
@@ -83,7 +143,11 @@ export default function YouTubePlayer({
         events: {
           onReady: (event) => {
             if (!cancelled) {
-              event.target.seekTo(Math.max(0, currentTime), true);
+              readyRef.current = true;
+              event.target.seekTo?.(
+                Math.max(0, currentTimeRef.current),
+                true,
+              );
             }
           },
           onStateChange: (event) => {
@@ -92,43 +156,40 @@ export default function YouTubePlayer({
               onTimeUpdate(duration, duration);
             }
           },
+          onError: (event) => {
+            if (!cancelled) {
+              setPlayerError(
+                `YouTube could not play this video (error ${event.data}).`,
+              );
+            }
+          },
         },
       });
     };
 
-    const loadApi = () => {
-      if (typeof window === "undefined") {
-        return;
-      }
-
-      if (window.YT && window.YT.Player) {
-        createPlayer();
-        return;
-      }
-
-      const existingScript = document.querySelector(
-        'script[src="https://www.youtube.com/iframe_api"]',
-      );
-      if (!existingScript) {
-        const tag = document.createElement("script");
-        tag.src = "https://www.youtube.com/iframe_api";
-        tag.async = true;
-        document.body.appendChild(tag);
-      }
-
-      window.onYouTubeIframeAPIReady = () => {
+    void loadYouTubeIframeApi()
+      .then(() => {
         if (!cancelled) {
           createPlayer();
         }
-      };
-    };
-
-    loadApi();
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setPlayerError(
+            error instanceof Error
+              ? error.message
+              : "The YouTube player could not be loaded.",
+          );
+        }
+      });
 
     return () => {
       cancelled = true;
+      flushProgress();
+      readyRef.current = false;
       if (saveIntervalRef.current) {
         window.clearInterval(saveIntervalRef.current);
+        saveIntervalRef.current = null;
       }
       if (
         playerRef.current &&
@@ -136,33 +197,11 @@ export default function YouTubePlayer({
       ) {
         playerRef.current.destroy();
       }
+      playerRef.current = null;
     };
   }, [videoId]);
 
   useEffect(() => {
-    if (!playerRef.current) {
-      return;
-    }
-
-    const player = playerRef.current;
-    const current = player.getCurrentTime ? player.getCurrentTime() : 0;
-    if (Math.abs(current - currentTime) > 1) {
-      player.seekTo?.(Math.max(0, currentTime), true);
-    }
-  }, [currentTime, videoId]);
-
-  useEffect(() => {
-    const flushProgress = () => {
-      const player = playerRef.current;
-      if (!player || typeof player.getCurrentTime !== "function") {
-        return;
-      }
-
-      const current = player.getCurrentTime();
-      const duration = player.getDuration ? player.getDuration() : 0;
-      onTimeUpdateRef.current(current, duration);
-    };
-
     saveIntervalRef.current = window.setInterval(flushProgress, 4000);
 
     const handleVisibilityChange = () => {
@@ -177,13 +216,16 @@ export default function YouTubePlayer({
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("pagehide", handleBeforeUnload);
 
     return () => {
       if (saveIntervalRef.current) {
         window.clearInterval(saveIntervalRef.current);
+        saveIntervalRef.current = null;
       }
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("pagehide", handleBeforeUnload);
       flushProgress();
     };
   }, [videoId]);
@@ -191,6 +233,11 @@ export default function YouTubePlayer({
   return (
     <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-100 shadow-sm">
       <div ref={containerRef} className="aspect-video w-full" />
+      {playerError ? (
+        <p role="alert" className="p-3 text-sm text-red-700">
+          {playerError}
+        </p>
+      ) : null}
     </div>
   );
 }

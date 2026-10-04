@@ -2,13 +2,15 @@
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus } from "@fortawesome/free-solid-svg-icons";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import AddVideoModal from "@/components/AddVideoModal";
 import { AccountButton, useAuth } from "@/components/AuthGate";
 import VideoCard from "@/components/VideoCard";
 import {
+  cacheVideos,
   deleteVideo,
+  getCachedVideos,
   loadVideos,
   saveVideo,
   type VideoRecord,
@@ -17,6 +19,7 @@ import { extractVideoId, getVideoThumbnail } from "@/lib/youtube";
 
 export default function HomePage() {
   const { user } = useAuth();
+  const userId = user?.id;
   const [videos, setVideos] = useState<VideoRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -24,19 +27,60 @@ export default function HomePage() {
   const [selectedVideo, setSelectedVideo] = useState<VideoRecord | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VideoRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const hasCachedVideosRef = useRef(false);
+
+  useLayoutEffect(() => {
+    if (!userId) {
+      return;
+    }
+
+    try {
+      const cachedVideos = getCachedVideos(userId);
+      if (cachedVideos) {
+        hasCachedVideosRef.current = true;
+        setVideos(cachedVideos);
+        setLoading(false);
+      } else {
+        hasCachedVideosRef.current = false;
+        setVideos([]);
+        setLoading(true);
+      }
+    } catch (cacheError) {
+      setError(
+        cacheError instanceof Error
+          ? cacheError.message
+          : "Your cached course library could not be loaded.",
+      );
+      hasCachedVideosRef.current = false;
+      setVideos([]);
+      setLoading(true);
+    }
+  }, [userId]);
 
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       return;
     }
 
     let cancelled = false;
-    setLoading(true);
-    setError("");
-    void loadVideos(user.id)
+    if (!hasCachedVideosRef.current) {
+      setLoading(true);
+    }
+    void loadVideos(userId)
       .then((loadedVideos) => {
         if (!cancelled) {
           setVideos(loadedVideos);
+          setError("");
+          hasCachedVideosRef.current = true;
+          try {
+            cacheVideos(userId, loadedVideos);
+          } catch (cacheError) {
+            setError(
+              cacheError instanceof Error
+                ? cacheError.message
+                : "Your course library could not be cached in this tab.",
+            );
+          }
         }
       })
       .catch((loadError: unknown) => {
@@ -57,7 +101,7 @@ export default function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [userId]);
 
   const handleSave = async ({
     youtubeUrl,
@@ -103,12 +147,20 @@ export default function HomePage() {
       throw new Error("Sign in to save videos.");
     }
     await saveVideo(user.id, nextVideo);
-    setVideos((current) =>
-      existing
-        ? current.map((video) => (video.id === videoId ? nextVideo : video))
-        : [nextVideo, ...current],
-    );
+    const updatedVideos = existing
+      ? videos.map((video) => (video.id === videoId ? nextVideo : video))
+      : [nextVideo, ...videos];
+    setVideos(updatedVideos);
     setError("");
+    try {
+      cacheVideos(user.id, updatedVideos);
+    } catch (cacheError) {
+      setError(
+        cacheError instanceof Error
+          ? cacheError.message
+          : "Your course library could not be cached in this tab.",
+      );
+    }
     setSelectedVideo(null);
     setIsModalOpen(false);
   };
@@ -128,11 +180,21 @@ export default function HomePage() {
     setDeleting(true);
     try {
       await deleteVideo(user.id, deleteTarget.id);
-      setVideos((current) =>
-        current.filter((video) => video.id !== deleteTarget.id),
+      const updatedVideos = videos.filter(
+        (video) => video.id !== deleteTarget.id,
       );
+      setVideos(updatedVideos);
       setDeleteTarget(null);
       setError("");
+      try {
+        cacheVideos(user.id, updatedVideos);
+      } catch (cacheError) {
+        setError(
+          cacheError instanceof Error
+            ? cacheError.message
+            : "Your course library could not be cached in this tab.",
+        );
+      }
     } catch (deleteError) {
       setError(
         deleteError instanceof Error
@@ -157,7 +219,7 @@ export default function HomePage() {
               setSelectedVideo(null);
               setIsModalOpen(true);
             }}
-            className="flex items-center gap-2 rounded-[8px] bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-700"
+            className="flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-700"
           >
             <FontAwesomeIcon icon={faPlus} className="text-xs" />
             <span>Add Video</span>

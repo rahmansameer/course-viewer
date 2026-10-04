@@ -19,6 +19,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
+      <head>
+        <link rel="preconnect" href="https://www.youtube.com" />
+        <link rel="preconnect" href="https://i.ytimg.com" />
+      </head>
       <body className="min-h-full bg-stone-100 text-zinc-900">
         <AuthGate>{children}</AuthGate>
       </body>

@@ -4,22 +4,39 @@ import { faArrowLeft } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { AccountButton, useAuth } from "@/components/AuthGate";
 import ProgressBar from "@/components/ProgressBar";
 import YouTubePlayer from "@/components/YouTubePlayer";
-import { getVideo, updateVideo, type VideoRecord } from "@/lib/storage";
+import {
+  cacheVideo,
+  clearCachedVideo,
+  getCachedVideo,
+  getPlaybackCheckpoint,
+  getVideo,
+  savePlaybackCheckpoint,
+  updateVideo,
+  type VideoRecord,
+} from "@/lib/storage";
 import { formatDuration, formatTime, getProgressPercent } from "@/lib/youtube";
 
 export default function WatchPage() {
   const params = useParams<{ id: string }>();
   const videoId = typeof params?.id === "string" ? params.id : "";
   const { user } = useAuth();
+  const userId = user?.id;
   const [video, setVideo] = useState<VideoRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const videoRef = useRef<VideoRecord | null>(null);
+  const videoOwnerRef = useRef("");
   const progressSaveRef = useRef<Promise<void>>(Promise.resolve());
   const notesSaveTimeoutRef = useRef<number | null>(null);
   const pendingNotesRef = useRef<string | null>(null);
@@ -28,22 +45,67 @@ export default function WatchPage() {
     duration: number | null;
   } | null>(null);
 
+  const restorePlaybackCheckpoint = useCallback(
+    (found: VideoRecord | null) => {
+      if (!found || !userId) {
+        return found;
+      }
+
+      const checkpoint = getPlaybackCheckpoint(userId, videoId);
+      const serverUpdatedAt = Date.parse(found.updatedAt);
+      if (
+        !checkpoint ||
+        (Number.isFinite(serverUpdatedAt) &&
+          checkpoint.savedAt <= serverUpdatedAt)
+      ) {
+        return found;
+      }
+
+      return {
+        ...found,
+        currentTime: checkpoint.currentTime,
+        duration: checkpoint.duration ?? found.duration,
+        completed: checkpoint.duration
+          ? checkpoint.currentTime >= checkpoint.duration - 1
+          : found.completed,
+      };
+    },
+    [userId, videoId],
+  );
+
   useEffect(() => {
-    lastSavedSnapshotRef.current = null;
-    videoRef.current = null;
-    setVideo(null);
-    setLoading(true);
-    setError("");
-    if (!user) {
+    if (!userId || !videoId) {
       return;
     }
 
     let cancelled = false;
-    void getVideo(user.id, videoId)
+    setError("");
+    const owner = `${userId}:${videoId}`;
+    if (videoOwnerRef.current !== owner) {
+      videoOwnerRef.current = owner;
+      videoRef.current = null;
+      setVideo(null);
+      lastSavedSnapshotRef.current = null;
+      setLoading(true);
+    }
+
+    void getVideo(userId, videoId)
       .then((found) => {
         if (!cancelled) {
-          setVideo(found);
-          videoRef.current = found;
+          const restored = restorePlaybackCheckpoint(found);
+          setVideo(restored);
+          videoRef.current = restored;
+          lastSavedSnapshotRef.current = restored
+            ? {
+                currentTime: Math.round(restored.currentTime),
+                duration: restored.duration,
+              }
+            : null;
+          if (restored) {
+            cacheVideo(userId, restored);
+          } else {
+            clearCachedVideo(userId, videoId);
+          }
         }
       })
       .catch((loadError: unknown) => {
@@ -64,11 +126,43 @@ export default function WatchPage() {
     return () => {
       cancelled = true;
     };
-  }, [videoId, user]);
+  }, [videoId, userId, restorePlaybackCheckpoint]);
+
+  useLayoutEffect(() => {
+    if (!userId || !videoId) {
+      return;
+    }
+
+    lastSavedSnapshotRef.current = null;
+    videoOwnerRef.current = `${userId}:${videoId}`;
+    try {
+      const cached = restorePlaybackCheckpoint(getCachedVideo(userId, videoId));
+      if (cached) {
+        videoRef.current = cached;
+        setVideo(cached);
+        lastSavedSnapshotRef.current = {
+          currentTime: Math.round(cached.currentTime),
+          duration: cached.duration,
+        };
+        setLoading(false);
+      } else {
+        videoRef.current = null;
+        setVideo(null);
+        setLoading(true);
+      }
+    } catch (cacheError) {
+      setError(
+        cacheError instanceof Error
+          ? cacheError.message
+          : "The cached video could not be restored.",
+      );
+      setLoading(true);
+    }
+  }, [userId, videoId, restorePlaybackCheckpoint]);
 
   const saveProgress = useCallback(
     (currentTime: number, duration: number) => {
-      if (!videoRef.current || !user) {
+      if (!videoRef.current || !userId) {
         return;
       }
 
@@ -78,6 +172,20 @@ export default function WatchPage() {
       const previous = videoRef.current;
       const roundedCurrent = Math.round(safeCurrentTime);
       const lastSnapshot = lastSavedSnapshotRef.current;
+      try {
+        cacheVideo(userId, {
+          ...previous,
+          currentTime: safeCurrentTime,
+          duration: safeDuration,
+        });
+        savePlaybackCheckpoint(userId, videoId, safeCurrentTime, safeDuration);
+      } catch (checkpointError) {
+        setError(
+          checkpointError instanceof Error
+            ? checkpointError.message
+            : "Playback progress could not be saved on this device.",
+        );
+      }
       const isSameProgress =
         previous &&
         lastSnapshot &&
@@ -120,7 +228,7 @@ export default function WatchPage() {
 
       progressSaveRef.current = progressSaveRef.current
         .then(() =>
-          updateVideo(user.id, videoId, {
+          updateVideo(userId, videoId, {
             currentTime: safeCurrentTime,
             duration: safeDuration,
             completed: isCompleted,
@@ -134,15 +242,15 @@ export default function WatchPage() {
           );
         });
     },
-    [user, videoId],
+    [userId, videoId],
   );
 
   const persistNotes = useCallback(
     (notes: string) => {
-      if (!user) {
+      if (!userId) {
         return;
       }
-      void updateVideo(user.id, videoId, { notes }).catch(
+      void updateVideo(userId, videoId, { notes }).catch(
         (saveError: unknown) => {
           setError(
             saveError instanceof Error
@@ -152,7 +260,7 @@ export default function WatchPage() {
         },
       );
     },
-    [user, videoId],
+    [userId, videoId],
   );
 
   const updateNotes = (notes: string) => {
@@ -161,6 +269,17 @@ export default function WatchPage() {
     }
 
     const nextVideo = { ...videoRef.current, notes };
+    if (userId) {
+      try {
+        cacheVideo(userId, nextVideo);
+      } catch (cacheError) {
+        setError(
+          cacheError instanceof Error
+            ? cacheError.message
+            : "The video could not be cached in this tab.",
+        );
+      }
+    }
     setVideo(nextVideo);
     videoRef.current = nextVideo;
     pendingNotesRef.current = notes;
@@ -213,7 +332,7 @@ export default function WatchPage() {
             className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-zinc-700 hover:text-zinc-900"
           >
             <FontAwesomeIcon icon={faArrowLeft} className="text-[12px]" />
-            <span>Back Home</span>
+            <span>Courses</span>
           </Link>
         </div>
       </main>
@@ -230,7 +349,7 @@ export default function WatchPage() {
           className="flex items-center gap-2 text-sm font-medium text-zinc-700 transition hover:text-zinc-950"
         >
           <FontAwesomeIcon icon={faArrowLeft} className="text-[12px]" />
-          <span>Back to courses</span>
+          <span>Courses</span>
         </Link>
         <AccountButton />
       </header>
@@ -247,7 +366,10 @@ export default function WatchPage() {
         onTimeUpdate={saveProgress}
       />
       {error ? (
-        <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">
+        <p
+          role="alert"
+          className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700"
+        >
           {error}
         </p>
       ) : null}

@@ -32,6 +32,239 @@ type VideoRow = {
 };
 
 const LEGACY_STORAGE_KEY = "course-shelf-v1";
+const PLAYBACK_CHECKPOINT_PREFIX = "course-viewer-playback-v1";
+const VIDEO_CACHE_PREFIX = "course-viewer-video-v1";
+const VIDEOS_CACHE_PREFIX = "course-viewer-videos-v1";
+
+const videoCache = new Map<string, VideoRecord>();
+const videosCache = new Map<string, VideoRecord[]>();
+
+export type PlaybackCheckpoint = {
+  currentTime: number;
+  duration: number | null;
+  savedAt: number;
+};
+
+function getPlaybackCheckpointKey(userId: string, id: string) {
+  return `${PLAYBACK_CHECKPOINT_PREFIX}:${encodeURIComponent(userId)}:${encodeURIComponent(id)}`;
+}
+
+function getVideoCacheKey(userId: string, id: string) {
+  return `${VIDEO_CACHE_PREFIX}:${encodeURIComponent(userId)}:${encodeURIComponent(id)}`;
+}
+
+function getVideosCacheKey(userId: string) {
+  return `${VIDEOS_CACHE_PREFIX}:${encodeURIComponent(userId)}`;
+}
+
+export function getCachedVideos(userId: string): VideoRecord[] | null {
+  const key = getVideosCacheKey(userId);
+  const inMemoryVideos = videosCache.get(key);
+  if (inMemoryVideos) {
+    return inMemoryVideos;
+  }
+
+  let raw: string | null;
+  try {
+    raw = window.sessionStorage.getItem(key);
+  } catch (error) {
+    throw new Error("The cached course library could not be read.", {
+      cause: error,
+    });
+  }
+  if (!raw) {
+    return null;
+  }
+
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch (error) {
+    throw new Error("The cached course library data is not valid.", {
+      cause: error,
+    });
+  }
+  if (!Array.isArray(value)) {
+    throw new Error("The cached course library has an unexpected format.");
+  }
+
+  const videos = value
+    .map((item) => normalizeVideo(item))
+    .filter((video): video is VideoRecord => video !== null);
+  videosCache.set(key, videos);
+  return videos;
+}
+
+export function cacheVideos(userId: string, videos: VideoRecord[]) {
+  const key = getVideosCacheKey(userId);
+  videosCache.set(key, videos);
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(videos));
+  } catch (error) {
+    throw new Error("The course library could not be cached in this tab.", {
+      cause: error,
+    });
+  }
+}
+
+function updateCachedVideos(userId: string, update: (videos: VideoRecord[]) => VideoRecord[]) {
+  const cached = getCachedVideos(userId);
+  if (cached) {
+    cacheVideos(userId, update(cached));
+  }
+}
+
+export function getCachedVideo(
+  userId: string,
+  id: string,
+): VideoRecord | null {
+  const key = getVideoCacheKey(userId, id);
+  const inMemoryVideo = videoCache.get(key);
+  if (inMemoryVideo) {
+    return inMemoryVideo;
+  }
+
+  let raw: string | null;
+  try {
+    raw = window.sessionStorage.getItem(key);
+  } catch (error) {
+    throw new Error("The cached video could not be read from this tab.", {
+      cause: error,
+    });
+  }
+  if (!raw) {
+    return null;
+  }
+
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch (error) {
+    throw new Error("The cached video data is not valid.", { cause: error });
+  }
+
+  const video = normalizeVideo(value);
+  if (!video || video.id !== id) {
+    return null;
+  }
+
+  videoCache.set(key, video);
+  return video;
+}
+
+export function cacheVideo(userId: string, video: VideoRecord) {
+  const key = getVideoCacheKey(userId, video.id);
+  videoCache.set(key, video);
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(video));
+  } catch (error) {
+    throw new Error("The video could not be cached in this tab.", {
+      cause: error,
+    });
+  }
+  updateCachedVideos(userId, (videos) => {
+    const existingIndex = videos.findIndex((item) => item.id === video.id);
+    if (existingIndex === -1) {
+      return videos;
+    }
+    return videos.map((item) => (item.id === video.id ? video : item));
+  });
+}
+
+export function clearCachedVideo(userId: string, id: string) {
+  const key = getVideoCacheKey(userId, id);
+  videoCache.delete(key);
+  try {
+    window.sessionStorage.removeItem(key);
+    window.localStorage.removeItem(getPlaybackCheckpointKey(userId, id));
+  } catch (error) {
+    throw new Error("The stale video cache and progress could not be removed.", {
+      cause: error,
+    });
+  }
+  updateCachedVideos(userId, (videos) => videos.filter((video) => video.id !== id));
+}
+
+export function savePlaybackCheckpoint(
+  userId: string,
+  id: string,
+  currentTime: number,
+  duration: number | null,
+) {
+  if (!Number.isFinite(currentTime) || currentTime < 0) {
+    return;
+  }
+
+  const checkpoint: PlaybackCheckpoint = {
+    currentTime,
+    duration:
+      typeof duration === "number" && Number.isFinite(duration) && duration > 0
+        ? duration
+        : null,
+    savedAt: Date.now(),
+  };
+
+  try {
+    window.localStorage.setItem(
+      getPlaybackCheckpointKey(userId, id),
+      JSON.stringify(checkpoint),
+    );
+  } catch (error) {
+    throw new Error("Playback progress could not be saved on this device.", {
+      cause: error,
+    });
+  }
+}
+
+export function getPlaybackCheckpoint(
+  userId: string,
+  id: string,
+): PlaybackCheckpoint | null {
+  let raw: string | null;
+  try {
+    raw = window.localStorage.getItem(getPlaybackCheckpointKey(userId, id));
+  } catch (error) {
+    throw new Error("Playback progress could not be read from this device.", {
+      cause: error,
+    });
+  }
+  if (!raw) {
+    return null;
+  }
+
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch (error) {
+    throw new Error("Saved playback progress is not valid.", { cause: error });
+  }
+
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("currentTime" in value) ||
+    typeof value.currentTime !== "number" ||
+    !Number.isFinite(value.currentTime) ||
+    value.currentTime < 0 ||
+    !("savedAt" in value) ||
+    typeof value.savedAt !== "number" ||
+    !Number.isFinite(value.savedAt)
+  ) {
+    return null;
+  }
+
+  return {
+    currentTime: value.currentTime,
+    duration:
+      "duration" in value &&
+      typeof value.duration === "number" &&
+      Number.isFinite(value.duration) &&
+      value.duration > 0
+        ? value.duration
+        : null,
+    savedAt: value.savedAt,
+  };
+}
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -243,4 +476,5 @@ export async function deleteVideo(userId: string, id: string) {
   if (!data) {
     throw new Error("This video is no longer in your library.");
   }
+  clearCachedVideo(userId, id);
 }
