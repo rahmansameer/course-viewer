@@ -73,7 +73,11 @@ function loadYouTubeIframeApi(): Promise<void> {
 type YouTubePlayerProps = {
   videoId: string;
   currentTime: number;
-  onTimeUpdate: (currentTime: number, duration: number) => void;
+  onTimeUpdate: (
+    currentTime: number,
+    duration: number,
+    forcePersist?: boolean,
+  ) => void;
 };
 
 declare global {
@@ -102,12 +106,13 @@ export default function YouTubePlayer({
   const playerRef = useRef<YouTubePlayerInstance | null>(null);
   const readyRef = useRef(false);
   const saveIntervalRef = useRef<number | null>(null);
+  const lastReportedSecondRef = useRef(-1);
   const onTimeUpdateRef = useRef(onTimeUpdate);
   const currentTimeRef = useRef(currentTime);
   const [playerError, setPlayerError] = useState("");
   currentTimeRef.current = currentTime;
 
-  const flushProgress = useCallback(() => {
+  const flushProgress = useCallback((forcePersist = false) => {
     const player = playerRef.current;
     if (!readyRef.current || !player?.getCurrentTime) {
       return;
@@ -115,7 +120,12 @@ export default function YouTubePlayer({
 
     const current = player.getCurrentTime();
     const duration = player.getDuration?.() ?? 0;
-    onTimeUpdateRef.current(current, duration);
+    const currentSecond = Math.floor(current);
+    if (!forcePersist && currentSecond === lastReportedSecondRef.current) {
+      return;
+    }
+    lastReportedSecondRef.current = currentSecond;
+    onTimeUpdateRef.current(current, duration, forcePersist);
   }, []);
 
   useEffect(() => {
@@ -151,9 +161,12 @@ export default function YouTubePlayer({
             }
           },
           onStateChange: (event) => {
-            if (event.data === window.YT?.PlayerState?.ENDED) {
-              const duration = playerRef.current?.getDuration?.() ?? 0;
-              onTimeUpdate(duration, duration);
+            const states = window.YT?.PlayerState;
+            if (
+              event.data === states?.PAUSED ||
+              event.data === states?.ENDED
+            ) {
+              flushProgress(true);
             }
           },
           onError: (event) => {
@@ -199,19 +212,19 @@ export default function YouTubePlayer({
       }
       playerRef.current = null;
     };
-  }, [videoId]);
+  }, [videoId, flushProgress]);
 
   useEffect(() => {
-    saveIntervalRef.current = window.setInterval(flushProgress, 4000);
+    saveIntervalRef.current = window.setInterval(flushProgress, 250);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        flushProgress();
+        flushProgress(true);
       }
     };
 
     const handleBeforeUnload = () => {
-      flushProgress();
+      flushProgress(true);
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);

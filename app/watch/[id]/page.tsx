@@ -38,6 +38,7 @@ export default function WatchPage() {
   const videoRef = useRef<VideoRecord | null>(null);
   const videoOwnerRef = useRef("");
   const progressSaveRef = useRef<Promise<void>>(Promise.resolve());
+  const lastRemoteProgressSaveRef = useRef(0);
   const notesSaveTimeoutRef = useRef<number | null>(null);
   const pendingNotesRef = useRef<string | null>(null);
   const lastSavedSnapshotRef = useRef<{
@@ -161,7 +162,7 @@ export default function WatchPage() {
   }, [userId, videoId, restorePlaybackCheckpoint]);
 
   const saveProgress = useCallback(
-    (currentTime: number, duration: number) => {
+    (currentTime: number, duration: number, forcePersist = false) => {
       if (!videoRef.current || !userId) {
         return;
       }
@@ -193,7 +194,9 @@ export default function WatchPage() {
         lastSnapshot.duration === safeDuration;
 
       if (isSameProgress) {
-        return;
+        if (!forcePersist) {
+          return;
+        }
       }
 
       const isCompleted = safeDuration
@@ -226,6 +229,14 @@ export default function WatchPage() {
         return nextVideo;
       });
 
+      const now = Date.now();
+      if (
+        !forcePersist &&
+        now - lastRemoteProgressSaveRef.current < 5000
+      ) {
+        return;
+      }
+      lastRemoteProgressSaveRef.current = now;
       progressSaveRef.current = progressSaveRef.current
         .then(() =>
           updateVideo(userId, videoId, {
