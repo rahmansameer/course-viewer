@@ -1,10 +1,12 @@
 "use client";
 
 import {
+  faCompress,
+  faExpand,
   faPause,
   faPlay,
-  faRotateLeft,
-  faRotateRight,
+  faVolumeHigh,
+  faVolumeXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -17,9 +19,12 @@ type YouTubePlayerInstance = {
   getDuration?: () => number;
   getIframe?: () => HTMLIFrameElement;
   getPlayerState?: () => number;
+  isMuted?: () => boolean;
+  mute?: () => void;
   pauseVideo?: () => void;
   playVideo?: () => void;
   seekTo?: (seconds: number, allowSeekAhead: boolean) => void;
+  unMute?: () => void;
 };
 
 type YouTubePlayerOptions = {
@@ -183,9 +188,9 @@ function VideoTimeline({
   };
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-1">
-      <span className="min-w-[32px] text-right text-[10px] tabular-nums text-zinc-500">
-        {formatTime(displayTime)}
+    <>
+      <span className="shrink-0 text-sm font-medium tabular-nums text-zinc-700">
+        {formatTime(displayTime)} / {formatTime(safeDuration)}
       </span>
       <div className="relative flex h-5 min-w-0 flex-1 items-center">
         <div
@@ -219,10 +224,7 @@ function VideoTimeline({
           className="youtube-seekbar relative z-10 h-5 w-full cursor-pointer disabled:cursor-not-allowed"
         />
       </div>
-      <span className="min-w-[32px] text-[10px] tabular-nums text-zinc-500">
-        {formatTime(safeDuration)}
-      </span>
-    </div>
+    </>
   );
 }
 
@@ -231,6 +233,7 @@ export default function YouTubePlayer({
   currentTime,
   onTimeUpdate,
 }: YouTubePlayerProps) {
+  const playerShellRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<YouTubePlayerInstance | null>(null);
   const readyRef = useRef(false);
@@ -242,7 +245,9 @@ export default function YouTubePlayer({
   const [playerError, setPlayerError] = useState("");
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [duration, setDuration] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenError, setFullscreenError] = useState("");
   currentTimeRef.current = currentTime;
 
@@ -320,18 +325,32 @@ export default function YouTubePlayer({
     }
   }, [isPlayerReady, isPlaying]);
 
+  const toggleMute = useCallback(() => {
+    const player = playerRef.current;
+    if (!isPlayerReady || !player) {
+      return;
+    }
+
+    if (isMuted) {
+      player.unMute?.();
+    } else {
+      player.mute?.();
+    }
+    setIsMuted(!isMuted);
+  }, [isMuted, isPlayerReady]);
+
   const toggleFullscreen = useCallback(async () => {
-    const playerFrame = playerRef.current?.getIframe?.();
-    if (!isPlayerReady || !playerFrame) {
+    const playerShell = playerShellRef.current;
+    if (!isPlayerReady || !playerShell) {
       return;
     }
 
     setFullscreenError("");
     try {
-      if (document.fullscreenElement === playerFrame) {
+      if (document.fullscreenElement === playerShell) {
         await document.exitFullscreen();
       } else if (!document.fullscreenElement) {
-        await playerFrame.requestFullscreen();
+        await playerShell.requestFullscreen();
       }
     } catch (error) {
       setFullscreenError(
@@ -341,6 +360,15 @@ export default function YouTubePlayer({
       );
     }
   }, [isPlayerReady]);
+
+  useEffect(() => {
+    const updateFullscreenState = () => {
+      setIsFullscreen(document.fullscreenElement === playerShellRef.current);
+    };
+    document.addEventListener("fullscreenchange", updateFullscreenState);
+    return () =>
+      document.removeEventListener("fullscreenchange", updateFullscreenState);
+  }, []);
 
   useEffect(() => {
     onTimeUpdateRef.current = onTimeUpdate;
@@ -424,6 +452,7 @@ export default function YouTubePlayer({
                 event.target.getPlayerState?.() ===
                   window.YT?.PlayerState?.PLAYING,
               );
+              setIsMuted(event.target.isMuted?.() ?? false);
               event.target.seekTo?.(
                 Math.max(0, currentTimeRef.current),
                 true,
@@ -516,8 +545,11 @@ export default function YouTubePlayer({
   }, [videoId, flushProgress]);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-100 shadow-sm">
-      <div className="relative aspect-video w-full bg-black">
+    <div
+      ref={playerShellRef}
+      className="youtube-player-shell overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-100 shadow-sm"
+    >
+      <div className="youtube-video-frame relative aspect-video w-full bg-black">
         <div ref={containerRef} className="h-full w-full" />
         {!isPlayerReady && !playerError ? (
           <div
@@ -538,25 +570,11 @@ export default function YouTubePlayer({
           <div className="flex shrink-0 items-center gap-0">
             <button
               type="button"
-              aria-label="Back 10 seconds"
-              title="Back 10 seconds"
-              disabled={!isPlayerReady}
-              onClick={() => seekBy(-10)}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <FontAwesomeIcon
-                icon={faRotateLeft}
-                className="text-[16px]"
-                aria-hidden="true"
-              />
-            </button>
-            <button
-              type="button"
               aria-label={isPlaying ? "Pause video" : "Play video"}
               title={isPlaying ? "Pause video" : "Play video"}
               disabled={!isPlayerReady}
               onClick={togglePlayback}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[13px] text-zinc-800 transition hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[15px] text-zinc-800 transition hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <FontAwesomeIcon
                 icon={isPlaying ? faPause : faPlay}
@@ -565,15 +583,14 @@ export default function YouTubePlayer({
             </button>
             <button
               type="button"
-              aria-label="Forward 10 seconds"
-              title="Forward 10 seconds"
+              aria-label={isMuted ? "Unmute video" : "Mute video"}
+              title={isMuted ? "Unmute" : "Mute"}
               disabled={!isPlayerReady}
-              onClick={() => seekBy(10)}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={toggleMute}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[15px] text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <FontAwesomeIcon
-                icon={faRotateRight}
-                className="text-[16px]"
+                icon={isMuted ? faVolumeXmark : faVolumeHigh}
                 aria-hidden="true"
               />
             </button>
@@ -587,6 +604,19 @@ export default function YouTubePlayer({
             getCurrentTime={getCurrentTime}
             seekTo={seekTo}
           />
+          <button
+            type="button"
+            aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            title={isFullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}
+            disabled={!isPlayerReady}
+            onClick={() => void toggleFullscreen()}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[15px] text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <FontAwesomeIcon
+              icon={isFullscreen ? faCompress : faExpand}
+              aria-hidden="true"
+            />
+          </button>
         </div>
       ) : null}
       {playerError ? (
