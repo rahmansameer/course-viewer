@@ -76,12 +76,14 @@ export default function VideoCard({ video, onEdit, onDelete }: VideoCardProps) {
             duration={video.duration}
           />
 
-          <div className="flex items-center justify-between text-xs text-zinc-600">
-            <span>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium tabular-nums text-zinc-700">
               {formatTime(video.currentTime)} /{" "}
               {video.duration ? formatDuration(video.duration) : "--:--"}
             </span>
-            <span>{Math.round(percent)}%</span>
+            <span className="text-sm font-medium tabular-nums text-zinc-700">
+              {Math.round(percent)}%
+            </span>
           </div>
 
           <div className="inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-sm font-medium text-zinc-800">

@@ -33,10 +33,33 @@ export default async function RootLayout({
       : null;
   const hasStoredSession =
     storedSessionHint === "1" || storedUserIdHint !== null;
+  const storedThemeMode = cookieStore.get("course-viewer-home-theme")?.value;
+  const initialThemeMode =
+    storedThemeMode === "dark" ||
+    storedThemeMode === "light" ||
+    storedThemeMode === "system"
+      ? storedThemeMode
+      : "system";
 
   return (
-    <html lang="en" className={`${roboto.variable} h-full antialiased`}>
+    <html
+      lang="en"
+      className={`${roboto.variable} h-full antialiased`}
+      data-theme={initialThemeMode}
+      suppressHydrationWarning
+    >
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try {
+  const mode = localStorage.getItem("course-viewer-home-theme");
+  document.documentElement.dataset.theme =
+    mode === "dark" || mode === "light" || mode === "system" ? mode : "system";
+} catch {
+  document.documentElement.dataset.theme = "system";
+}`,
+          }}
+        />
         <link rel="preconnect" href="https://www.youtube.com" />
         <link rel="preconnect" href="https://i.ytimg.com" />
       </head>

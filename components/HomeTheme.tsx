@@ -46,19 +46,10 @@ export function HomeThemeProvider({ children }: { children: ReactNode }) {
     setThemeModeState(getStoredThemeMode());
   }, []);
 
-  useEffect(() => {
-    document.documentElement.dataset.theme = themeMode;
-  }, [themeMode]);
-
-  useEffect(
-    () => () => {
-      delete document.documentElement.dataset.theme;
-    },
-    [],
-  );
-
   const setThemeMode = (mode: ThemeMode) => {
+    document.documentElement.dataset.theme = mode;
     setThemeModeState(mode);
+    document.cookie = `${THEME_STORAGE_KEY}=${mode}; path=/; max-age=31536000; samesite=lax`;
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, mode);
     } catch (error) {
