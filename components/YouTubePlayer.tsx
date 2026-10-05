@@ -94,6 +94,7 @@ function loadYouTubeIframeApi(): Promise<void> {
 type YouTubePlayerProps = {
   videoId: string;
   currentTime: number;
+  expanded?: boolean;
   onTimeUpdate: (
     currentTime: number,
     duration: number,
@@ -231,6 +232,7 @@ function VideoTimeline({
 export default function YouTubePlayer({
   videoId,
   currentTime,
+  expanded = false,
   onTimeUpdate,
 }: YouTubePlayerProps) {
   const playerShellRef = useRef<HTMLDivElement | null>(null);
@@ -547,9 +549,17 @@ export default function YouTubePlayer({
   return (
     <div
       ref={playerShellRef}
-      className="youtube-player-shell overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-100 shadow-sm"
+      className={`youtube-player-shell overflow-hidden bg-zinc-100 ${
+        expanded
+          ? "flex h-full flex-col rounded-none border-0 shadow-none"
+          : "rounded-2xl border border-zinc-200 shadow-sm"
+      }`}
     >
-      <div className="youtube-video-frame relative aspect-video w-full bg-black">
+      <div
+        className={`youtube-video-frame relative w-full bg-black ${
+          expanded ? "min-h-0 flex-1" : "aspect-video"
+        }`}
+      >
         <div ref={containerRef} className="h-full w-full" />
         {!isPlayerReady && !playerError ? (
           <div

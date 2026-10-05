@@ -33,6 +33,7 @@ export default function WatchPage() {
   const [video, setVideo] = useState<VideoRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isWidePlayer, setIsWidePlayer] = useState(false);
   const videoRef = useRef<VideoRecord | null>(null);
   const videoOwnerRef = useRef("");
   const progressSaveRef = useRef<Promise<void>>(Promise.resolve());
@@ -43,6 +44,35 @@ export default function WatchPage() {
     currentTime: number;
     duration: number | null;
   } | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key.toLowerCase() !== "t" ||
+        event.repeat ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey
+      ) {
+        return;
+      }
+
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.closest("input, textarea, select, [contenteditable='true']"))
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      setIsWidePlayer((isWide) => !isWide);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const restorePlaybackCheckpoint = useCallback(
     (found: VideoRecord | null) => {
@@ -364,27 +394,42 @@ export default function WatchPage() {
   }
 
   return (
-    <main className="min-h-screen px-4 py-5 sm:px-6 lg:px-8">
-      <nav className="mb-6">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 text-sm font-medium text-zinc-700 transition hover:text-zinc-950"
-        >
-          <FontAwesomeIcon icon={faArrowLeft} className="text-xs" />
-          Dashboard
-        </Link>
-      </nav>
+    <main
+      className={
+        isWidePlayer
+          ? "h-dvh overflow-hidden"
+          : "min-h-screen px-4 py-5 sm:px-6 lg:px-8"
+      }
+    >
+      {!isWidePlayer ? (
+        <nav className="mb-6">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-sm font-medium text-zinc-700 transition hover:text-zinc-950"
+          >
+            <FontAwesomeIcon icon={faArrowLeft} className="text-xs" />
+            Dashboard
+          </Link>
+        </nav>
+      ) : null}
 
-      <div className="grid items-stretch gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(20rem,1fr)] xl:gap-8">
-        <section className="min-w-0">
+      <div
+        className={`grid items-stretch gap-6 xl:gap-8 ${
+          isWidePlayer
+            ? "h-full min-h-0 grid-cols-1"
+            : "lg:grid-cols-[minmax(0,3fr)_minmax(20rem,1fr)]"
+        }`}
+      >
+        <section className={isWidePlayer ? "h-full min-h-0 min-w-0" : "min-w-0"}>
           <YouTubePlayer
             videoId={video.id}
             currentTime={video.currentTime}
+            expanded={isWidePlayer}
             onTimeUpdate={saveProgress}
           />
         </section>
 
-        <aside className="min-w-0 lg:flex">
+        <aside className={isWidePlayer ? "hidden" : "min-w-0 lg:flex"}>
           <section className="flex flex-1 flex-col rounded-2xl border border-zinc-200 bg-white p-4">
             <label
               htmlFor="notes"
@@ -404,12 +449,12 @@ export default function WatchPage() {
         </aside>
       </div>
 
-      {video.description ? (
+      {!isWidePlayer && video.description ? (
         <p className="mt-5 whitespace-pre-wrap text-sm leading-6 text-zinc-600">
           {video.description}
         </p>
       ) : null}
-      {error ? (
+      {!isWidePlayer && error ? (
         <p
           role="alert"
           className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700"
