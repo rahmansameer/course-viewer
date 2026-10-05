@@ -38,6 +38,7 @@ export default function WatchPage() {
   const [error, setError] = useState("");
   const [isWidePlayer, setIsWidePlayer] = useState(false);
   const [playerHeight, setPlayerHeight] = useState(0);
+  const isWidePlayerRef = useRef(false);
   const videoRef = useRef<VideoRecord | null>(null);
   const playerSectionRef = useRef<HTMLElement | null>(null);
   const videoOwnerRef = useRef("");
@@ -49,6 +50,11 @@ export default function WatchPage() {
     currentTime: number;
     duration: number | null;
   } | null>(null);
+
+  const toggleWidePlayer = useCallback(() => {
+    isWidePlayerRef.current = !isWidePlayerRef.current;
+    setIsWidePlayer(isWidePlayerRef.current);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -72,12 +78,12 @@ export default function WatchPage() {
       }
 
       event.preventDefault();
-      setIsWidePlayer((isWide) => !isWide);
+      toggleWidePlayer();
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [toggleWidePlayer]);
 
   useEffect(() => {
     const playerSection = playerSectionRef.current;
@@ -86,7 +92,9 @@ export default function WatchPage() {
     }
 
     const observer = new ResizeObserver(([entry]) => {
-      setPlayerHeight(entry.contentRect.height);
+      if (!isWidePlayerRef.current) {
+        setPlayerHeight(entry.contentRect.height);
+      }
     });
     observer.observe(playerSection);
     return () => observer.disconnect();
@@ -441,7 +449,7 @@ export default function WatchPage() {
             videoId={video.id}
             currentTime={video.currentTime}
             expanded={isWidePlayer}
-            onToggleExpanded={() => setIsWidePlayer((isWide) => !isWide)}
+            onToggleExpanded={toggleWidePlayer}
             onTimeUpdate={saveProgress}
           />
         </section>
