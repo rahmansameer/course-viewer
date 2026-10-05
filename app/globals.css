@@ -3,7 +3,7 @@
 :root {
   --background: #fafafa;
   --foreground: #18181b;
-  --font-inter: "Inter", Arial, Helvetica, sans-serif;
+  --font-roboto: "Roboto", Arial, Helvetica, sans-serif;
 }
 
 * {
@@ -12,7 +12,7 @@
 
 html {
   background: var(--background);
-  font-family: var(--font-inter);
+  font-family: var(--font-roboto);
 }
 
 body {
@@ -20,7 +20,7 @@ body {
   min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-inter);
+  font-family: var(--font-roboto);
 }
 
 button,
@@ -38,4 +38,56 @@ a {
 img {
   display: block;
   max-width: 100%;
+}
+
+.youtube-seekbar {
+  appearance: none;
+  background: transparent;
+}
+
+.youtube-seekbar::-webkit-slider-runnable-track {
+  height: 3px;
+  background: transparent;
+}
+
+.youtube-seekbar::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  margin-top: -4.5px;
+  appearance: none;
+  border: 0;
+  border-radius: 50%;
+  background: #18181b;
+  transition: transform 120ms ease;
+}
+
+.youtube-seekbar:hover::-webkit-slider-thumb,
+.youtube-seekbar:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.08);
+}
+
+.youtube-seekbar::-moz-range-track {
+  height: 3px;
+  background: transparent;
+}
+
+.youtube-seekbar::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: #18181b;
+  transition: transform 120ms ease;
+}
+
+.youtube-seekbar:hover::-moz-range-thumb,
+.youtube-seekbar:focus-visible::-moz-range-thumb {
+  transform: scale(1.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .youtube-seekbar::-webkit-slider-thumb,
+  .youtube-seekbar::-moz-range-thumb {
+    transition: none;
+  }
 }

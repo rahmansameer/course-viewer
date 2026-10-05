@@ -13,7 +13,6 @@ import {
 } from "react";
 
 import { AccountButton, useAuth } from "@/components/AuthGate";
-import ProgressBar from "@/components/ProgressBar";
 import YouTubePlayer from "@/components/YouTubePlayer";
 import {
   cacheVideo,
@@ -25,7 +24,6 @@ import {
   updateVideo,
   type VideoRecord,
 } from "@/lib/storage";
-import { formatDuration, formatTime, getProgressPercent } from "@/lib/youtube";
 
 export default function WatchPage() {
   const params = useParams<{ id: string }>();
@@ -350,8 +348,6 @@ export default function WatchPage() {
     );
   }
 
-  const progress = getProgressPercent(video.currentTime, video.duration);
-
   return (
     <main className="mx-auto min-h-screen max-w-5xl px-4 py-8 md:px-8">
       <header className="mb-8 flex items-center justify-between border-b border-zinc-200/80 pb-5">
@@ -385,24 +381,9 @@ export default function WatchPage() {
         </p>
       ) : null}
 
-      <div className="mt-5 space-y-4">
-        <div className="flex items-center justify-between gap-3 text-sm text-zinc-700">
-          <span>
-            {formatTime(video.currentTime)} /{" "}
-            {video.duration ? formatDuration(video.duration) : "--:--"}
-          </span>
-          <span>{Math.round(progress)}% complete</span>
-        </div>
-
-        <ProgressBar
-          currentTime={video.currentTime}
-          duration={video.duration}
-        />
-
-        {video.description ? (
-          <p className="text-sm text-zinc-600">{video.description}</p>
-        ) : null}
-      </div>
+      {video.description ? (
+        <p className="mt-5 text-sm text-zinc-600">{video.description}</p>
+      ) : null}
 
       <div className="mt-8 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
         <label
