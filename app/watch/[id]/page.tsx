@@ -13,6 +13,7 @@ import {
 } from "react";
 
 import { useAuth } from "@/components/AuthGate";
+import CourseNotes from "@/components/CourseNotes";
 import YouTubePlayer from "@/components/YouTubePlayer";
 import {
   cacheVideo,
@@ -36,7 +37,9 @@ export default function WatchPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isWidePlayer, setIsWidePlayer] = useState(false);
+  const [playerHeight, setPlayerHeight] = useState(0);
   const videoRef = useRef<VideoRecord | null>(null);
+  const playerSectionRef = useRef<HTMLElement | null>(null);
   const videoOwnerRef = useRef("");
   const progressSaveRef = useRef<Promise<void>>(Promise.resolve());
   const lastRemoteProgressSaveRef = useRef(0);
@@ -75,6 +78,19 @@ export default function WatchPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  useEffect(() => {
+    const playerSection = playerSectionRef.current;
+    if (!playerSection) {
+      return;
+    }
+
+    const observer = new ResizeObserver(([entry]) => {
+      setPlayerHeight(entry.contentRect.height);
+    });
+    observer.observe(playerSection);
+    return () => observer.disconnect();
+  }, [video?.id]);
 
   const restorePlaybackCheckpoint = useCallback(
     (found: VideoRecord | null) => {
@@ -404,13 +420,23 @@ export default function WatchPage() {
       ) : null}
 
       <div
+        style={
+          playerHeight > 0
+            ? ({ "--player-height": `${playerHeight}px` } as React.CSSProperties)
+            : undefined
+        }
         className={`grid items-stretch gap-6 xl:gap-8 ${
           isWidePlayer
             ? "h-full min-h-0 grid-cols-1"
-            : "lg:grid-cols-[minmax(0,3fr)_minmax(20rem,1fr)]"
+            : "min-h-0 lg:grid-cols-[minmax(0,3fr)_minmax(20rem,1fr)]"
         }`}
       >
-        <section className={isWidePlayer ? "h-full min-h-0 min-w-0" : "min-w-0"}>
+        <section
+          ref={playerSectionRef}
+          className={
+            isWidePlayer ? "h-full min-h-0 min-w-0" : "min-w-0"
+          }
+        >
           <YouTubePlayer
             videoId={video.id}
             currentTime={video.currentTime}
@@ -420,23 +446,18 @@ export default function WatchPage() {
           />
         </section>
 
-        <aside className={isWidePlayer ? "hidden" : "min-w-0 lg:flex"}>
-          <section className="flex flex-1 flex-col rounded-2xl border border-zinc-200 bg-white p-4">
-            <label
-              htmlFor="notes"
-              className="mb-3 block text-sm font-medium text-zinc-900"
-            >
-              Notes
-            </label>
-            <textarea
-              id="notes"
-              value={video.notes}
-              onChange={(event) => updateNotes(event.target.value)}
-              rows={8}
-              placeholder="Write something here..."
-              className="w-full flex-1 resize-none rounded-lg border-0 bg-transparent px-0 py-1 text-sm leading-6 text-zinc-900 outline-none placeholder:text-zinc-400 focus:bg-transparent lg:min-h-0"
-            />
-          </section>
+        <aside
+          className={
+            isWidePlayer
+              ? "hidden"
+              : "h-[60vh] min-h-64 min-w-0 overflow-hidden lg:h-[var(--player-height)] lg:flex"
+          }
+        >
+          <CourseNotes
+            notes={video.notes}
+            currentTime={video.currentTime}
+            onChange={updateNotes}
+          />
         </aside>
       </div>
 
