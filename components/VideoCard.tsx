@@ -50,6 +50,8 @@ export default function VideoCard({ video, onEdit, onDelete }: VideoCardProps) {
             <img
               src={video.thumbnail}
               alt={video.title}
+              loading="lazy"
+              decoding="async"
               className="h-full w-full object-cover"
             />
           ) : (
