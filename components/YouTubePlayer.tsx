@@ -15,6 +15,7 @@ type YouTubePlayerInstance = {
   destroy?: () => void;
   getCurrentTime?: () => number;
   getDuration?: () => number;
+  getIframe?: () => HTMLIFrameElement;
   getPlayerState?: () => number;
   pauseVideo?: () => void;
   playVideo?: () => void;
@@ -242,6 +243,7 @@ export default function YouTubePlayer({
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
+  const [fullscreenError, setFullscreenError] = useState("");
   currentTimeRef.current = currentTime;
 
   const readDuration = useCallback((player: YouTubePlayerInstance) => {
@@ -318,6 +320,28 @@ export default function YouTubePlayer({
     }
   }, [isPlayerReady, isPlaying]);
 
+  const toggleFullscreen = useCallback(async () => {
+    const playerFrame = playerRef.current?.getIframe?.();
+    if (!isPlayerReady || !playerFrame) {
+      return;
+    }
+
+    setFullscreenError("");
+    try {
+      if (document.fullscreenElement === playerFrame) {
+        await document.exitFullscreen();
+      } else if (!document.fullscreenElement) {
+        await playerFrame.requestFullscreen();
+      }
+    } catch (error) {
+      setFullscreenError(
+        error instanceof Error
+          ? error.message
+          : "Fullscreen could not be enabled.",
+      );
+    }
+  }, [isPlayerReady]);
+
   useEffect(() => {
     onTimeUpdateRef.current = onTimeUpdate;
   }, [onTimeUpdate]);
@@ -344,6 +368,9 @@ export default function YouTubePlayer({
       if (event.key === " " || key === "k") {
         event.preventDefault();
         togglePlayback();
+      } else if (key === "f") {
+        event.preventDefault();
+        void toggleFullscreen();
       } else if (key === "j") {
         event.preventDefault();
         seekBy(-10);
@@ -361,7 +388,7 @@ export default function YouTubePlayer({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [seekBy, togglePlayback]);
+  }, [seekBy, toggleFullscreen, togglePlayback]);
 
   useEffect(() => {
     let cancelled = false;
@@ -505,7 +532,7 @@ export default function YouTubePlayer({
       {isPlayerReady || playerError ? (
         <div
           role="group"
-          aria-label="Video controls. Space or K plays and pauses, J rewinds 10 seconds, L skips forward 10 seconds, and the left and right arrow keys seek by 5 seconds."
+          aria-label="Video controls. Space or K plays and pauses, F toggles fullscreen, J rewinds 10 seconds, L skips forward 10 seconds, and the left and right arrow keys seek by 5 seconds."
           className="flex items-center gap-1 border-t border-zinc-200 bg-white px-2 py-1 text-zinc-900"
         >
           <div className="flex shrink-0 items-center gap-0">
@@ -565,6 +592,11 @@ export default function YouTubePlayer({
       {playerError ? (
         <p role="alert" className="p-3 text-sm text-red-700">
           {playerError}
+        </p>
+      ) : null}
+      {fullscreenError ? (
+        <p role="alert" className="p-3 text-sm text-red-700">
+          {fullscreenError}
         </p>
       ) : null}
     </div>

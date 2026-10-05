@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Roboto } from "next/font/google";
+import { cookies } from "next/headers";
+
 import AuthGate from "@/components/AuthGate";
+import { AUTH_SESSION_HINT_COOKIE } from "@/lib/auth-session-hint";
 import "./globals.css";
 
 const roboto = Roboto({
@@ -15,9 +18,22 @@ export const metadata: Metadata = {
     "Personal library for tracking long-form YouTube videos and courses.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const cookieStore = await cookies();
+  const storedSessionHint =
+    cookieStore.get(AUTH_SESSION_HINT_COOKIE)?.value ?? null;
+  const storedUserIdHint =
+    storedSessionHint &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      storedSessionHint,
+    )
+      ? storedSessionHint
+      : null;
+  const hasStoredSession =
+    storedSessionHint === "1" || storedUserIdHint !== null;
+
   return (
     <html lang="en" className={`${roboto.variable} h-full antialiased`}>
       <head>
@@ -25,7 +41,12 @@ export default function RootLayout({
         <link rel="preconnect" href="https://i.ytimg.com" />
       </head>
       <body className="min-h-full bg-stone-100 text-zinc-900">
-        <AuthGate>{children}</AuthGate>
+        <AuthGate
+          hasStoredSession={hasStoredSession}
+          storedUserIdHint={storedUserIdHint}
+        >
+          {children}
+        </AuthGate>
       </body>
     </html>
   );

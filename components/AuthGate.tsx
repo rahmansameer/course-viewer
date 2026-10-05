@@ -7,7 +7,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
   useContext,
@@ -21,11 +21,13 @@ import {
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 import profilePhoto from "@/app/profile.jpg";
+import { setAuthSessionHint } from "@/lib/auth-session-hint";
 import { getSupabaseClient } from "@/lib/supabase";
 
 type AuthContextValue = {
   user: User | null;
   loading: boolean;
+  cachedUserIdHint: string | null;
   signOut: () => Promise<void>;
 };
 
@@ -39,7 +41,16 @@ export function useAuth() {
   return context;
 }
 
-export default function AuthGate({ children }: { children: ReactNode }) {
+export default function AuthGate({
+  children,
+  hasStoredSession,
+  storedUserIdHint,
+}: {
+  children: ReactNode;
+  hasStoredSession: boolean;
+  storedUserIdHint: string | null;
+}) {
+  const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState("");
@@ -63,6 +74,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setUser(session?.user ?? null);
+        setAuthSessionHint(session?.user.id ?? null);
         setLoading(false);
       },
     );
@@ -74,6 +86,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
           throw error;
         }
         setUser(data.session?.user ?? null);
+        setAuthSessionHint(data.session?.user.id ?? null);
         setLoading(false);
       })
       .catch((error: unknown) => {
@@ -96,9 +109,20 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     if (error) {
       throw error;
     }
+    setAuthSessionHint(null);
   };
 
   if (loading) {
+    if (pathname === "/") {
+      return (
+        <AuthContext.Provider
+          value={{ user, loading, cachedUserIdHint: storedUserIdHint, signOut }}
+        >
+          {hasStoredSession ? children : <AuthForm />}
+        </AuthContext.Provider>
+      );
+    }
+
     return (
       <main className="flex min-h-screen items-center justify-center bg-white px-4">
         <div className="flex items-center gap-3 text-sm text-zinc-500">
@@ -126,7 +150,9 @@ export default function AuthGate({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signOut }}>
+    <AuthContext.Provider
+      value={{ user, loading, cachedUserIdHint: null, signOut }}
+    >
       {user ? children : <AuthForm />}
     </AuthContext.Provider>
   );
@@ -157,18 +183,22 @@ function AuthForm() {
           throw signUpError;
         }
         if (!data.session) {
+          setAuthSessionHint(null);
           setConfirmationEmail(email.trim());
         } else {
+          setAuthSessionHint(data.session.user.id);
           router.refresh();
         }
       } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
+        const { data, error: signInError } =
+          await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password,
+          });
         if (signInError) {
           throw signInError;
         }
+        setAuthSessionHint(data.session?.user.id ?? null);
         router.refresh();
       }
     } catch (submitError) {
