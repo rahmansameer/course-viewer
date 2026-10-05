@@ -18,6 +18,7 @@ import {
   cacheVideo,
   clearCachedVideo,
   getCachedVideo,
+  getCachedVideos,
   getPlaybackCheckpoint,
   getVideo,
   savePlaybackCheckpoint,
@@ -28,8 +29,9 @@ import {
 export default function WatchPage() {
   const params = useParams<{ id: string }>();
   const videoId = typeof params?.id === "string" ? params.id : "";
-  const { user } = useAuth();
+  const { user, cachedUserIdHint } = useAuth();
   const userId = user?.id;
+  const cacheUserId = userId ?? cachedUserIdHint;
   const [video, setVideo] = useState<VideoRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -76,11 +78,11 @@ export default function WatchPage() {
 
   const restorePlaybackCheckpoint = useCallback(
     (found: VideoRecord | null) => {
-      if (!found || !userId) {
+      if (!found || !cacheUserId) {
         return found;
       }
 
-      const checkpoint = getPlaybackCheckpoint(userId, videoId);
+      const checkpoint = getPlaybackCheckpoint(cacheUserId, videoId);
       const serverUpdatedAt = Date.parse(found.updatedAt);
       if (
         !checkpoint ||
@@ -99,7 +101,7 @@ export default function WatchPage() {
           : found.completed,
       };
     },
-    [userId, videoId],
+    [cacheUserId, videoId],
   );
 
   useEffect(() => {
@@ -158,14 +160,18 @@ export default function WatchPage() {
   }, [videoId, userId, restorePlaybackCheckpoint]);
 
   useLayoutEffect(() => {
-    if (!userId || !videoId) {
+    if (!cacheUserId || !videoId) {
       return;
     }
 
     lastSavedSnapshotRef.current = null;
-    videoOwnerRef.current = `${userId}:${videoId}`;
+    videoOwnerRef.current = `${cacheUserId}:${videoId}`;
     try {
-      const cached = restorePlaybackCheckpoint(getCachedVideo(userId, videoId));
+      const cachedVideo =
+        getCachedVideo(cacheUserId, videoId) ??
+        getCachedVideos(cacheUserId)?.find((item) => item.id === videoId) ??
+        null;
+      const cached = restorePlaybackCheckpoint(cachedVideo);
       if (cached) {
         videoRef.current = cached;
         setVideo(cached);
@@ -174,10 +180,10 @@ export default function WatchPage() {
           duration: cached.duration,
         };
         setLoading(false);
+        setError("");
       } else {
         videoRef.current = null;
         setVideo(null);
-        setLoading(true);
       }
     } catch (cacheError) {
       setError(
@@ -185,9 +191,8 @@ export default function WatchPage() {
           ? cacheError.message
           : "The cached video could not be restored.",
       );
-      setLoading(true);
     }
-  }, [userId, videoId, restorePlaybackCheckpoint]);
+  }, [cacheUserId, videoId, restorePlaybackCheckpoint]);
 
   const saveProgress = useCallback(
     (currentTime: number, duration: number, forcePersist = false) => {
@@ -347,22 +352,7 @@ export default function WatchPage() {
   );
 
   if (loading) {
-    return (
-      <main className="min-h-screen px-4 py-5 sm:px-6 lg:px-8">
-        <nav className="mb-6">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-sm font-medium text-zinc-700 transition hover:text-zinc-950"
-          >
-            <FontAwesomeIcon icon={faArrowLeft} className="text-xs" />
-            Dashboard
-          </Link>
-        </nav>
-        <div className="flex min-h-[60vh] items-center justify-center">
-          <p className="text-sm text-zinc-600">Loading your video...</p>
-        </div>
-      </main>
-    );
+    return null;
   }
 
   if (!video) {
@@ -425,6 +415,7 @@ export default function WatchPage() {
             videoId={video.id}
             currentTime={video.currentTime}
             expanded={isWidePlayer}
+            onToggleExpanded={() => setIsWidePlayer((isWide) => !isWide)}
             onTimeUpdate={saveProgress}
           />
         </section>

@@ -131,6 +131,16 @@ export default function AuthGate({
       );
     }
 
+    if (pathname.startsWith("/watch/")) {
+      return (
+        <AuthContext.Provider
+          value={{ user, loading, cachedUserIdHint: storedUserIdHint, signOut }}
+        >
+          <HomeThemeProvider>{children}</HomeThemeProvider>
+        </AuthContext.Provider>
+      );
+    }
+
     return (
       <main className="flex min-h-screen items-center justify-center bg-white px-4">
         <div className="flex items-center gap-3 text-sm text-zinc-500">

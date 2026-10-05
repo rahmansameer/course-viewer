@@ -2,7 +2,9 @@
 
 import {
   faCompress,
+  faDownLeftAndUpRightToCenter,
   faExpand,
+  faUpRightAndDownLeftFromCenter,
   faPause,
   faPlay,
   faVolumeHigh,
@@ -95,6 +97,7 @@ type YouTubePlayerProps = {
   videoId: string;
   currentTime: number;
   expanded?: boolean;
+  onToggleExpanded?: () => void;
   onTimeUpdate: (
     currentTime: number,
     duration: number,
@@ -233,6 +236,7 @@ export default function YouTubePlayer({
   videoId,
   currentTime,
   expanded = false,
+  onToggleExpanded,
   onTimeUpdate,
 }: YouTubePlayerProps) {
   const playerShellRef = useRef<HTMLDivElement | null>(null);
@@ -614,6 +618,24 @@ export default function YouTubePlayer({
             getCurrentTime={getCurrentTime}
             seekTo={seekTo}
           />
+          {onToggleExpanded ? (
+            <button
+              type="button"
+              aria-label={expanded ? "Exit wide player" : "Expand player"}
+              title={expanded ? "Exit wide player (T)" : "Expand player (T)"}
+              onClick={onToggleExpanded}
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[15px] text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950"
+            >
+              <FontAwesomeIcon
+                icon={
+                  expanded
+                    ? faDownLeftAndUpRightToCenter
+                    : faUpRightAndDownLeftFromCenter
+                }
+                aria-hidden="true"
+              />
+            </button>
+          ) : null}
           <button
             type="button"
             aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
