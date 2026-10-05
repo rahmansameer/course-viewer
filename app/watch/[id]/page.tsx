@@ -12,7 +12,7 @@ import {
   useState,
 } from "react";
 
-import { AccountButton, useAuth } from "@/components/AuthGate";
+import { useAuth } from "@/components/AuthGate";
 import YouTubePlayer from "@/components/YouTubePlayer";
 import {
   cacheVideo,
@@ -318,60 +318,97 @@ export default function WatchPage() {
 
   if (loading) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-3xl items-center justify-center px-4">
-        <p className="text-sm text-zinc-600">Loading your video...</p>
+      <main className="min-h-screen px-4 py-5 sm:px-6 lg:px-8">
+        <nav className="mb-6">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-sm font-medium text-zinc-700 transition hover:text-zinc-950"
+          >
+            <FontAwesomeIcon icon={faArrowLeft} className="text-xs" />
+            Dashboard
+          </Link>
+        </nav>
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <p className="text-sm text-zinc-600">Loading your video...</p>
+        </div>
       </main>
     );
   }
 
   if (!video) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-3xl items-center justify-center px-4">
-        <div className="w-full rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm">
-          <p className="text-xl font-semibold text-zinc-900">
-            {error ? "Could not load video." : "Video not found."}
-          </p>
-          {error ? (
-            <p role="alert" className="mt-2 text-sm text-red-600">
-              {error}
-            </p>
-          ) : null}
+      <main className="min-h-screen px-4 py-5 sm:px-6 lg:px-8">
+        <nav className="mb-6">
           <Link
             href="/"
-            className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-zinc-700 hover:text-zinc-900"
+            className="inline-flex items-center gap-2 text-sm font-medium text-zinc-700 transition hover:text-zinc-950"
           >
-            <FontAwesomeIcon icon={faArrowLeft} className="text-[12px]" />
-            <span>Courses</span>
+            <FontAwesomeIcon icon={faArrowLeft} className="text-xs" />
+            Dashboard
           </Link>
+        </nav>
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <div className="w-full max-w-3xl rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm">
+            <p className="text-xl font-semibold text-zinc-900">
+              {error ? "Could not load video." : "Video not found."}
+            </p>
+            {error ? (
+              <p role="alert" className="mt-2 text-sm text-red-600">
+                {error}
+              </p>
+            ) : null}
+          </div>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto min-h-screen max-w-5xl px-4 py-8 md:px-8">
-      <header className="mb-8 flex items-center justify-between border-b border-zinc-200/80 pb-5">
+    <main className="min-h-screen px-4 py-5 sm:px-6 lg:px-8">
+      <nav className="mb-6">
         <Link
           href="/"
-          className="flex items-center gap-2 text-sm font-medium text-zinc-700 transition hover:text-zinc-950"
+          className="inline-flex items-center gap-2 text-sm font-medium text-zinc-700 transition hover:text-zinc-950"
         >
-          <FontAwesomeIcon icon={faArrowLeft} className="text-[12px]" />
-          <span>Courses</span>
+          <FontAwesomeIcon icon={faArrowLeft} className="text-xs" />
+          Dashboard
         </Link>
-        <AccountButton />
-      </header>
+      </nav>
 
-      <div className="mb-6">
-        <h1 className="text-3xl font-semibold tracking-tight text-zinc-900">
-          {video.title}
-        </h1>
+      <div className="grid items-stretch gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(20rem,1fr)] xl:gap-8">
+        <section className="min-w-0">
+          <YouTubePlayer
+            videoId={video.id}
+            currentTime={video.currentTime}
+            onTimeUpdate={saveProgress}
+          />
+        </section>
+
+        <aside className="min-w-0 lg:flex">
+          <section className="flex flex-1 flex-col rounded-2xl border border-zinc-200 bg-white p-4">
+            <label
+              htmlFor="notes"
+              className="mb-3 block text-sm font-medium text-zinc-900"
+            >
+              Notes
+            </label>
+            <textarea
+              id="notes"
+              value={video.notes}
+              onChange={(event) => updateNotes(event.target.value)}
+              rows={8}
+              placeholder="Write something here..."
+              className="w-full flex-1 resize-none rounded-lg border-0 bg-transparent px-0 py-1 text-sm leading-6 text-zinc-900 outline-none placeholder:text-zinc-400 focus:bg-transparent lg:min-h-0"
+            />
+          </section>
+        </aside>
       </div>
 
-      <YouTubePlayer
-        videoId={video.id}
-        currentTime={video.currentTime}
-        onTimeUpdate={saveProgress}
-      />
+      {video.description ? (
+        <p className="mt-5 whitespace-pre-wrap text-sm leading-6 text-zinc-600">
+          {video.description}
+        </p>
+      ) : null}
       {error ? (
         <p
           role="alert"
@@ -380,27 +417,6 @@ export default function WatchPage() {
           {error}
         </p>
       ) : null}
-
-      {video.description ? (
-        <p className="mt-5 text-sm text-zinc-600">{video.description}</p>
-      ) : null}
-
-      <div className="mt-8 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <label
-          htmlFor="notes"
-          className="mb-2 block text-sm font-medium text-zinc-800"
-        >
-          Notes
-        </label>
-        <textarea
-          id="notes"
-          value={video.notes}
-          onChange={(event) => updateNotes(event.target.value)}
-          rows={5}
-          placeholder="Write something here..."
-          className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 outline-none transition focus:border-zinc-400 focus:bg-white"
-        />
-      </div>
     </main>
   );
 }

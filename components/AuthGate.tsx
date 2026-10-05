@@ -4,6 +4,9 @@ import {
   faArrowRightFromBracket,
   faChevronDown,
   faCircleExclamation,
+  faDesktop,
+  faMoon,
+  faSun,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Image from "next/image";
@@ -21,6 +24,7 @@ import {
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 import profilePhoto from "@/app/profile.jpg";
+import { HomeThemeProvider, useHomeTheme } from "@/components/HomeTheme";
 import { setAuthSessionHint } from "@/lib/auth-session-hint";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -118,7 +122,11 @@ export default function AuthGate({
         <AuthContext.Provider
           value={{ user, loading, cachedUserIdHint: storedUserIdHint, signOut }}
         >
-          {hasStoredSession ? children : <AuthForm />}
+          {hasStoredSession ? (
+            <HomeThemeProvider>{children}</HomeThemeProvider>
+          ) : (
+            <AuthForm />
+          )}
         </AuthContext.Provider>
       );
     }
@@ -153,7 +161,7 @@ export default function AuthGate({
     <AuthContext.Provider
       value={{ user, loading, cachedUserIdHint: null, signOut }}
     >
-      {user ? children : <AuthForm />}
+      {user ? <HomeThemeProvider>{children}</HomeThemeProvider> : <AuthForm />}
     </AuthContext.Provider>
   );
 }
@@ -336,6 +344,7 @@ function AuthForm() {
 
 export function AccountButton() {
   const { user, signOut } = useAuth();
+  const { themeMode, setThemeMode } = useHomeTheme();
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -393,7 +402,7 @@ export function AccountButton() {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="flex h-11 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-2.5 text-zinc-700 shadow-sm transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/20"
+        className="flex h-11 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-2.5 text-zinc-700 transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/20"
       >
         <Image
           src={profilePhoto}
@@ -410,13 +419,51 @@ export function AccountButton() {
         <div
           role="menu"
           aria-label="Account menu"
-          className="absolute right-0 top-11 z-50 w-64 overflow-hidden rounded-lg border border-zinc-200 bg-white p-1.5 shadow-lg shadow-zinc-950/10"
+          className="absolute right-0 top-[calc(100%+8px)] z-50 w-64 overflow-hidden rounded-lg border border-zinc-200 bg-white p-1.5"
         >
           <div className="px-3 py-2.5">
             <p className="text-xs font-medium text-zinc-500">Signed in as</p>
             <p className="mt-1 truncate text-sm font-medium text-zinc-900">
               {email}
             </p>
+          </div>
+          <div className="my-1 border-t border-zinc-100" />
+          <div className="px-3 py-2.5">
+            <p
+              id="theme-setting-label"
+              className="mb-2 text-xs font-medium text-zinc-500"
+            >
+              Theme
+            </p>
+            <div
+              role="group"
+              aria-labelledby="theme-setting-label"
+              className="flex rounded-md border border-zinc-200 p-0.5"
+            >
+              {(
+                [
+                  ["light", "Light", faSun],
+                  ["dark", "Dark", faMoon],
+                  ["system", "System", faDesktop],
+                ] as const
+              ).map(([mode, label, icon]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  aria-pressed={themeMode === mode}
+                  aria-label={`${label} theme`}
+                  title={label}
+                  onClick={() => setThemeMode(mode)}
+                  className={`flex h-8 flex-1 items-center justify-center rounded text-sm transition ${
+                    themeMode === mode
+                      ? "bg-[var(--theme-toggle-active-background)] text-[var(--theme-toggle-active-foreground)] hover:opacity-90"
+                      : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                  }`}
+                >
+                  <FontAwesomeIcon icon={icon} aria-hidden="true" />
+                </button>
+              ))}
+            </div>
           </div>
           <div className="my-1 border-t border-zinc-100" />
           {error ? (

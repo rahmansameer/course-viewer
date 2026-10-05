@@ -31,7 +31,7 @@ export default function VideoCard({ video, onEdit, onDelete }: VideoCardProps) {
         </button>
         <button
           type="button"
-          className="cursor-pointer rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[10px] font-medium text-zinc-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+          className="cursor-pointer rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[10px] font-medium text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900"
           onClick={(event) => {
             event.stopPropagation();
             onDelete(video.id);

@@ -38,7 +38,7 @@ function haveSameVideos(left: VideoRecord[], right: VideoRecord[]) {
   );
 }
 
-export default function HomePage() {
+function HomePageContent() {
   const { user, cachedUserIdHint } = useAuth();
   const userId = user?.id;
   const cachedUserId = userId ?? cachedUserIdHint;
@@ -105,6 +105,7 @@ export default function HomePage() {
                 : "Your course library could not be cached in this tab.",
             );
           }
+
         }
       })
       .catch((loadError: unknown) => {
@@ -115,6 +116,7 @@ export default function HomePage() {
               : "Your course library could not be loaded.",
           );
         }
+
       })
       .finally(() => {
         if (!cancelled) {
@@ -321,4 +323,8 @@ export default function HomePage() {
       />
     </main>
   );
+}
+
+export default function HomePage() {
+  return <HomePageContent />;
 }
