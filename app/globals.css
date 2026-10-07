@@ -120,6 +120,11 @@ body {
   pointer-events: none;
 }
 
+.youtube-video-frame {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 button,
 input,
 textarea {
