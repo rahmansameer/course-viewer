@@ -15,7 +15,7 @@ export type YouTubePlayerInstance = {
 };
 
 type YouTubePlayerOptions = {
-  videoId: string;
+  videoId?: string;
   height?: string | number;
   width?: string | number;
   playerVars?: Record<string, number | boolean | string>;
@@ -98,6 +98,7 @@ declare global {
         ENDED: number;
         PLAYING: number;
         PAUSED: number;
+        BUFFERING: number;
       };
     };
     onYouTubeIframeAPIReady?: () => void;

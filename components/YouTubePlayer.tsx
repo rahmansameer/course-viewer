@@ -10,7 +10,13 @@ import {
   faVolumeHigh,
   faVolumeXmark,
 } from "@fortawesome/free-solid-svg-icons";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import Icon from "@/components/Icon";
 import { formatTime } from "@/lib/youtube";
@@ -333,7 +339,12 @@ export default function YouTubePlayer({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [seekBy, toggleFullscreen, togglePlayback]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
     let cancelled = false;
     setPlayerError("");
     setIsPlayerReady(false);
@@ -342,36 +353,62 @@ export default function YouTubePlayer({
     durationRef.current = 0;
     lastReportedSecondRef.current = -1;
 
+    // Create the embed during commit, before paint, with autoplay and the
+    // saved start second in its URL. YouTube then loads and starts playback
+    // on its own instead of waiting for the IFrame API, onReady, and a seekTo
+    // round trip; YT.Player attaches to this iframe once the API is ready.
+    const iframe = document.createElement("iframe");
+    const startSecond = Math.floor(Math.max(0, currentTimeRef.current));
+    const embedParams = new URLSearchParams({
+      autoplay: "1",
+      start: String(startSecond),
+      controls: "0",
+      disablekb: "1",
+      rel: "0",
+      playsinline: "1",
+      enablejsapi: "1",
+      origin: window.location.origin,
+    });
+    iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?${embedParams}`;
+    iframe.title = "YouTube video player";
+    iframe.width = "100%";
+    iframe.height = "100%";
+    iframe.allow =
+      "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+    iframe.referrerPolicy = "strict-origin-when-cross-origin";
+    iframe.allowFullscreen = true;
+    iframe.style.display = "block";
+    iframe.style.border = "0";
+    container.appendChild(iframe);
+
     const createPlayer = () => {
-      if (!containerRef.current || !window.YT?.Player) {
+      if (!window.YT?.Player) {
         return;
       }
 
-      playerRef.current = new window.YT.Player(containerRef.current, {
-        videoId,
-        height: "100%",
-        width: "100%",
-        playerVars: {
-          controls: 0,
-          disablekb: 1,
-          rel: 0,
-          playsinline: 1,
-        },
+      playerRef.current = new window.YT.Player(iframe, {
         events: {
           onReady: (event) => {
             if (!cancelled) {
               readyRef.current = true;
               setIsPlayerReady(true);
               readDuration(event.target);
-              setIsPlaying(
-                event.target.getPlayerState?.() ===
-                  window.YT?.PlayerState?.PLAYING,
-              );
+              const states = window.YT?.PlayerState;
+              const state = event.target.getPlayerState?.();
+              setIsPlaying(state === states?.PLAYING);
               setIsMuted(event.target.isMuted?.() ?? false);
-              event.target.seekTo?.(
-                Math.max(0, currentTimeRef.current),
-                true,
-              );
+              // Fall back to the original seek (which also starts playback)
+              // if autoplay did not start or the saved position changed while
+              // the embed was loading, e.g. newer progress from Supabase.
+              // The player clock can still read 0 while buffering the start
+              // position, so compare against the start second in the URL.
+              const savedTime = Math.max(0, currentTimeRef.current);
+              if (
+                (state !== states?.PLAYING && state !== states?.BUFFERING) ||
+                Math.abs(savedTime - startSecond) > 2
+              ) {
+                event.target.seekTo?.(savedTime, true);
+              }
             }
           },
           onStateChange: (event) => {
@@ -427,6 +464,7 @@ export default function YouTubePlayer({
         playerRef.current.destroy();
       }
       playerRef.current = null;
+      iframe.remove();
     };
   }, [videoId, flushProgress, readDuration]);
 
