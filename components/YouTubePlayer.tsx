@@ -10,88 +10,14 @@ import {
   faVolumeHigh,
   faVolumeXmark,
 } from "@fortawesome/free-solid-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import Icon from "@/components/Icon";
 import { formatTime } from "@/lib/youtube";
-
-type YouTubePlayerInstance = {
-  destroy?: () => void;
-  getCurrentTime?: () => number;
-  getDuration?: () => number;
-  getIframe?: () => HTMLIFrameElement;
-  getPlayerState?: () => number;
-  isMuted?: () => boolean;
-  mute?: () => void;
-  pauseVideo?: () => void;
-  playVideo?: () => void;
-  seekTo?: (seconds: number, allowSeekAhead: boolean) => void;
-  unMute?: () => void;
-};
-
-type YouTubePlayerOptions = {
-  videoId: string;
-  height?: string | number;
-  width?: string | number;
-  playerVars?: Record<string, number | boolean | string>;
-  events?: {
-    onReady?: (event: { target: YouTubePlayerInstance }) => void;
-    onStateChange?: (event: {
-      data: number;
-      target: YouTubePlayerInstance;
-    }) => void;
-    onError?: (event: { data: number }) => void;
-  };
-};
-
-let youtubeApiPromise: Promise<void> | null = null;
-
-function loadYouTubeIframeApi(): Promise<void> {
-  if (window.YT?.Player) {
-    return Promise.resolve();
-  }
-  if (youtubeApiPromise) {
-    return youtubeApiPromise;
-  }
-
-  youtubeApiPromise = new Promise<void>((resolve, reject) => {
-    const existingScript = document.querySelector<HTMLScriptElement>(
-      'script[src="https://www.youtube.com/iframe_api"]',
-    );
-    const previousCallback = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
-      try {
-        previousCallback?.();
-        if (!window.YT?.Player) {
-          throw new Error("The YouTube player could not be initialized.");
-        }
-        resolve();
-      } catch (error) {
-        reject(error);
-      }
-    };
-
-    const script = existingScript ?? document.createElement("script");
-    script.addEventListener(
-      "error",
-      () => {
-        youtubeApiPromise = null;
-        reject(new Error("The YouTube player API could not be loaded."));
-      },
-      { once: true },
-    );
-    if (!existingScript) {
-      script.src = "https://www.youtube.com/iframe_api";
-      script.async = true;
-      document.head.appendChild(script);
-    }
-  }).catch((error: unknown) => {
-    youtubeApiPromise = null;
-    throw error;
-  });
-
-  return youtubeApiPromise;
-}
+import {
+  loadYouTubeIframeApi,
+  type YouTubePlayerInstance,
+} from "@/lib/youtube-iframe-api";
 
 type YouTubePlayerProps = {
   videoId: string;
@@ -104,23 +30,6 @@ type YouTubePlayerProps = {
     forcePersist?: boolean,
   ) => void;
 };
-
-declare global {
-  interface Window {
-    YT?: {
-      Player: new (
-        elementId: string | HTMLElement,
-        options: YouTubePlayerOptions,
-      ) => YouTubePlayerInstance;
-      PlayerState?: {
-        ENDED: number;
-        PLAYING: number;
-        PAUSED: number;
-      };
-    };
-    onYouTubeIframeAPIReady?: () => void;
-  }
-}
 
 type VideoTimelineProps = {
   currentTime: number;
@@ -590,9 +499,8 @@ export default function YouTubePlayer({
               onClick={togglePlayback}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[15px] text-zinc-800 transition hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <FontAwesomeIcon
+              <Icon
                 icon={isPlaying ? faPause : faPlay}
-                aria-hidden="true"
               />
             </button>
             <button
@@ -603,9 +511,8 @@ export default function YouTubePlayer({
               onClick={toggleMute}
               className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[15px] text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <FontAwesomeIcon
+              <Icon
                 icon={isMuted ? faVolumeXmark : faVolumeHigh}
-                aria-hidden="true"
               />
             </button>
           </div>
@@ -626,13 +533,12 @@ export default function YouTubePlayer({
               onClick={onToggleExpanded}
               className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[15px] text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950"
             >
-              <FontAwesomeIcon
+              <Icon
                 icon={
                   expanded
                     ? faDownLeftAndUpRightToCenter
                     : faUpRightAndDownLeftFromCenter
                 }
-                aria-hidden="true"
               />
             </button>
           ) : null}
@@ -644,9 +550,8 @@ export default function YouTubePlayer({
             onClick={() => void toggleFullscreen()}
             className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[15px] text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <FontAwesomeIcon
+            <Icon
               icon={isFullscreen ? faCompress : faExpand}
-              aria-hidden="true"
             />
           </button>
         </div>

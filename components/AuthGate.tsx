@@ -8,9 +8,8 @@ import {
   faMoon,
   faSun,
 } from "@fortawesome/free-solid-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   createContext,
   useContext,
@@ -18,15 +17,20 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type FormEvent,
   type ReactNode,
 } from "react";
-import type { SupabaseClient, User } from "@supabase/supabase-js";
+import type { User } from "@supabase/auth-js";
 
+import Icon from "@/components/Icon";
 import profilePhoto from "@/app/profile.jpg";
 import { HomeThemeProvider, useHomeTheme } from "@/components/HomeTheme";
-import { setAuthSessionHint } from "@/lib/auth-session-hint";
-import { getSupabaseClient } from "@/lib/supabase";
+import {
+  readAuthSessionHint,
+  setAuthSessionHint,
+} from "@/lib/auth-session-hint";
+import { getSupabaseClient, type SupabaseClient } from "@/lib/supabase";
 
 type AuthContextValue = {
   user: User | null;
@@ -45,16 +49,20 @@ export function useAuth() {
   return context;
 }
 
-export default function AuthGate({
-  children,
-  hasStoredSession,
-  storedUserIdHint,
-}: {
-  children: ReactNode;
-  hasStoredSession: boolean;
-  storedUserIdHint: string | null;
-}) {
+const subscribeToNothing = () => () => {};
+
+export default function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  // The layout is static, so the session hint cookie is read in the browser.
+  // Until hydration finishes, "/" renders the sign-in form, which the inline
+  // script in app/layout.tsx hides for returning users before first paint.
+  const isHydrated = useSyncExternalStore(
+    subscribeToNothing,
+    () => true,
+    () => false,
+  );
+  const [{ hasStoredSession, userIdHint: storedUserIdHint }] =
+    useState(readAuthSessionHint);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState("");
@@ -122,10 +130,10 @@ export default function AuthGate({
         <AuthContext.Provider
           value={{ user, loading, cachedUserIdHint: storedUserIdHint, signOut }}
         >
-          {hasStoredSession ? (
+          {isHydrated && hasStoredSession ? (
             <HomeThemeProvider>{children}</HomeThemeProvider>
           ) : (
-            <AuthForm />
+            <AuthForm hideForStoredSession />
           )}
         </AuthContext.Provider>
       );
@@ -155,7 +163,7 @@ export default function AuthGate({
     return (
       <main className="flex min-h-screen items-center justify-center bg-white px-4">
         <div className="max-w-md rounded-xl border border-red-200 bg-red-50 p-5 text-center">
-          <FontAwesomeIcon
+          <Icon
             icon={faCircleExclamation}
             className="mb-3 text-red-600"
           />
@@ -176,8 +184,11 @@ export default function AuthGate({
   );
 }
 
-function AuthForm() {
-  const router = useRouter();
+function AuthForm({
+  hideForStoredSession = false,
+}: {
+  hideForStoredSession?: boolean;
+}) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -205,7 +216,6 @@ function AuthForm() {
           setConfirmationEmail(email.trim());
         } else {
           setAuthSessionHint(data.session.user.id);
-          router.refresh();
         }
       } else {
         const { data, error: signInError } =
@@ -217,7 +227,6 @@ function AuthForm() {
           throw signInError;
         }
         setAuthSessionHint(data.session?.user.id ?? null);
-        router.refresh();
       }
     } catch (submitError) {
       setError(
@@ -261,7 +270,10 @@ function AuthForm() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-12">
+    <main
+      data-auth-fallback={hideForStoredSession ? "" : undefined}
+      className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-12"
+    >
       <section className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-8 sm:p-10">
         <div className="mb-8">
           <h1 className="text-3xl font-bold tracking-tight text-zinc-950">
@@ -419,7 +431,7 @@ export function AccountButton() {
           alt=""
           className="h-7 w-7 rounded-full object-cover"
         />
-        <FontAwesomeIcon
+        <Icon
           icon={faChevronDown}
           className="text-[10px] text-zinc-500"
         />
@@ -470,7 +482,7 @@ export function AccountButton() {
                       : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
                   }`}
                 >
-                  <FontAwesomeIcon icon={icon} aria-hidden="true" />
+                  <Icon icon={icon} />
                 </button>
               ))}
             </div>
@@ -488,7 +500,7 @@ export function AccountButton() {
             onClick={handleSignOut}
             className="flex h-9 w-full items-center gap-2.5 rounded-md px-3 text-left text-sm text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-950 disabled:opacity-60"
           >
-            <FontAwesomeIcon
+            <Icon
               icon={faArrowRightFromBracket}
               className="w-3 text-xs text-zinc-500"
             />

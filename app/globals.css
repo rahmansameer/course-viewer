@@ -90,6 +90,10 @@ body {
   font-family: var(--font-roboto);
 }
 
+html[data-session-hint] [data-auth-fallback] {
+  display: none;
+}
+
 .home-theme {
   background-color: var(--color-stone-100);
   color: var(--color-zinc-900);
@@ -140,6 +144,15 @@ a {
 img {
   display: block;
   max-width: 100%;
+}
+
+.svg-inline--fa {
+  box-sizing: content-box;
+  display: var(--fa-display, inline-block);
+  height: 1em;
+  overflow: visible;
+  vertical-align: -0.125em;
+  width: var(--fa-width, 1.25em);
 }
 
 .youtube-seekbar {

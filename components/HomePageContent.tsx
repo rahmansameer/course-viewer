@@ -258,10 +258,11 @@ function HomePageContent() {
         </div>
       ) : (
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {videos.map((video) => (
+          {videos.map((video, index) => (
             <VideoCard
               key={video.id}
               video={video}
+              eagerThumbnail={index < 3}
               onEdit={(videoToEdit) => {
                 setSelectedVideo(videoToEdit);
                 setIsModalOpen(true);

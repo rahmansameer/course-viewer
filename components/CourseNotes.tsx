@@ -6,9 +6,9 @@ import {
   faListOl,
   faListUl,
 } from "@fortawesome/free-solid-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useLayoutEffect, useRef, useState } from "react";
 
+import Icon from "@/components/Icon";
 import { formatTime } from "@/lib/youtube";
 
 type CourseNotesProps = {
@@ -198,7 +198,7 @@ export default function CourseNotes({
               onClick={onClick}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-sm text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500"
             >
-              <FontAwesomeIcon icon={icon} aria-hidden="true" />
+              <Icon icon={icon} />
             </button>
           ))}
         </div>

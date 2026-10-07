@@ -4,16 +4,24 @@ import Link from "next/link";
 
 import { type VideoRecord } from "@/lib/storage";
 import { formatDuration, formatTime, getProgressPercent } from "@/lib/youtube";
+import { preloadYouTubeIframeApi } from "@/lib/youtube-iframe-api";
 
 import ProgressBar from "@/components/ProgressBar";
 
 type VideoCardProps = {
   video: VideoRecord;
+  // First-row thumbnails are the dashboard's largest paint; load them eagerly.
+  eagerThumbnail?: boolean;
   onEdit: (video: VideoRecord) => void;
   onDelete: (id: string) => void;
 };
 
-export default function VideoCard({ video, onEdit, onDelete }: VideoCardProps) {
+export default function VideoCard({
+  video,
+  eagerThumbnail = false,
+  onEdit,
+  onDelete,
+}: VideoCardProps) {
   const percent = getProgressPercent(video.currentTime, video.duration);
 
   return (
@@ -44,13 +52,15 @@ export default function VideoCard({ video, onEdit, onDelete }: VideoCardProps) {
       <Link
         href={`/watch/${video.id}`}
         className="block cursor-pointer"
+        onPointerEnter={preloadYouTubeIframeApi}
+        onFocus={preloadYouTubeIframeApi}
       >
         <div className="relative aspect-video overflow-hidden bg-zinc-200">
           {video.thumbnail ? (
             <img
               src={video.thumbnail}
               alt={video.title}
-              loading="lazy"
+              loading={eagerThumbnail ? "eager" : "lazy"}
               decoding="async"
               className="h-full w-full object-cover"
             />
