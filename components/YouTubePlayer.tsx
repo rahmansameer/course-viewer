@@ -414,6 +414,7 @@ export default function YouTubePlayer({
               const state = event.target.getPlayerState?.();
               setIsPlaying(state === states?.PLAYING);
               setIsMuted(event.target.isMuted?.() ?? false);
+              event.target.unloadModule?.("captions");
               if (isSettledState(state)) {
                 setHasPlaybackSettled(true);
               } else {
@@ -440,6 +441,11 @@ export default function YouTubePlayer({
           onStateChange: (event) => {
             const states = window.YT?.PlayerState;
             setIsPlaying(event.data === states?.PLAYING);
+            // Captions stay off: YouTube turns on uploader or account default
+            // captions again whenever playback starts.
+            if (event.data === states?.PLAYING) {
+              event.target.unloadModule?.("captions");
+            }
             if (isSettledState(event.data)) {
               setHasPlaybackSettled(true);
             }
@@ -449,6 +455,11 @@ export default function YouTubePlayer({
               event.data === states?.ENDED
             ) {
               flushProgress(true);
+            }
+          },
+          onApiChange: (event) => {
+            if (!cancelled) {
+              event.target.unloadModule?.("captions");
             }
           },
           onError: (event) => {

@@ -12,6 +12,7 @@ export type YouTubePlayerInstance = {
   playVideo?: () => void;
   seekTo?: (seconds: number, allowSeekAhead: boolean) => void;
   unMute?: () => void;
+  unloadModule?: (module: string) => void;
 };
 
 type YouTubePlayerOptions = {
@@ -26,6 +27,7 @@ type YouTubePlayerOptions = {
       target: YouTubePlayerInstance;
     }) => void;
     onError?: (event: { data: number }) => void;
+    onApiChange?: (event: { target: YouTubePlayerInstance }) => void;
   };
 };
 
