@@ -116,6 +116,10 @@ body {
   display: none;
 }
 
+.youtube-video-frame iframe {
+  pointer-events: none;
+}
+
 button,
 input,
 textarea {
