@@ -396,6 +396,12 @@ export default function YouTubePlayer({
     iframe.allowFullscreen = true;
     iframe.style.display = "block";
     iframe.style.border = "0";
+    // Overscan by 1px on each side (the frame clips it) so a sub-pixel gap or
+    // a dark edge row from the embed never shows as a line around the video.
+    iframe.style.position = "absolute";
+    iframe.style.inset = "-1px";
+    iframe.style.width = "calc(100% + 2px)";
+    iframe.style.height = "calc(100% + 2px)";
     container.appendChild(iframe);
 
     const createPlayer = () => {
@@ -550,7 +556,7 @@ export default function YouTubePlayer({
       }`}
     >
       <div
-        className={`youtube-video-frame relative w-full bg-black ${
+        className={`youtube-video-frame relative w-full overflow-hidden bg-black ${
           expanded ? "min-h-0 flex-1" : "aspect-video"
         }`}
       >
@@ -568,7 +574,7 @@ export default function YouTubePlayer({
       <div
         role="group"
         aria-label="Video controls. Space or K plays and pauses, F toggles fullscreen, J rewinds 10 seconds, L skips forward 10 seconds, and the left and right arrow keys seek by 5 seconds."
-        className="flex items-center gap-1 border-t border-zinc-200 bg-white px-2 py-1 text-zinc-900"
+        className="flex items-center gap-1 bg-white px-2 py-1 text-zinc-900"
       >
         <div className="flex shrink-0 items-center gap-0">
           <button
