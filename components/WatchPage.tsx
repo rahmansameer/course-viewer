@@ -38,10 +38,7 @@ export default function WatchPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isWidePlayer, setIsWidePlayer] = useState(false);
-  const [playerHeight, setPlayerHeight] = useState(0);
-  const isWidePlayerRef = useRef(false);
   const videoRef = useRef<VideoRecord | null>(null);
-  const playerSectionRef = useRef<HTMLElement | null>(null);
   const videoOwnerRef = useRef("");
   const progressSaveRef = useRef<Promise<void>>(Promise.resolve());
   const lastRemoteProgressSaveRef = useRef(0);
@@ -58,8 +55,7 @@ export default function WatchPage() {
   }, []);
 
   const toggleWidePlayer = useCallback(() => {
-    isWidePlayerRef.current = !isWidePlayerRef.current;
-    setIsWidePlayer(isWidePlayerRef.current);
+    setIsWidePlayer((isWide) => !isWide);
   }, []);
 
   useEffect(() => {
@@ -90,21 +86,6 @@ export default function WatchPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [toggleWidePlayer]);
-
-  useEffect(() => {
-    const playerSection = playerSectionRef.current;
-    if (!playerSection) {
-      return;
-    }
-
-    const observer = new ResizeObserver(([entry]) => {
-      if (!isWidePlayerRef.current) {
-        setPlayerHeight(entry.contentRect.height);
-      }
-    });
-    observer.observe(playerSection);
-    return () => observer.disconnect();
-  }, [video?.id]);
 
   const restorePlaybackCheckpoint = useCallback(
     (found: VideoRecord | null) => {
@@ -394,7 +375,7 @@ export default function WatchPage() {
             className="inline-flex items-center gap-2 text-sm font-medium text-zinc-700 transition hover:text-zinc-950"
           >
             <Icon icon={faArrowLeft} className="text-xs" />
-            Dashboard
+            My Courses
           </Link>
         </nav>
         <div className="flex min-h-[60vh] items-center justify-center">
@@ -418,7 +399,7 @@ export default function WatchPage() {
       className={
         isWidePlayer
           ? "h-dvh overflow-hidden"
-          : "min-h-screen px-4 py-5 sm:px-6 lg:px-8"
+          : "flex min-h-dvh flex-col px-4 py-5 sm:px-6 lg:px-8"
       }
     >
       {!isWidePlayer ? (
@@ -428,25 +409,20 @@ export default function WatchPage() {
             className="inline-flex items-center gap-2 text-sm font-medium text-zinc-700 transition hover:text-zinc-950"
           >
             <Icon icon={faArrowLeft} className="text-xs" />
-            Dashboard
+            My Courses
           </Link>
         </nav>
       ) : null}
 
       <div
-        style={
-          playerHeight > 0
-            ? ({ "--player-height": `${playerHeight}px` } as React.CSSProperties)
-            : undefined
-        }
         className={`grid items-stretch gap-6 xl:gap-8 ${
           isWidePlayer
             ? "h-full min-h-0 grid-cols-1"
-            : "min-h-0 lg:grid-cols-[minmax(0,3fr)_minmax(20rem,1fr)]"
+            : // Stacked, the notes take the rest of the screen below the player.
+              "min-h-0 flex-1 grid-rows-[auto_minmax(16rem,1fr)] lg:flex-none lg:grid-cols-[minmax(0,3fr)_minmax(20rem,1fr)] lg:grid-rows-none"
         }`}
       >
         <section
-          ref={playerSectionRef}
           className={
             isWidePlayer ? "h-full min-h-0 min-w-0" : "min-w-0"
           }
@@ -465,7 +441,10 @@ export default function WatchPage() {
           className={
             isWidePlayer
               ? "hidden"
-              : "h-[60vh] min-h-64 min-w-0 overflow-hidden lg:h-[var(--player-height)] lg:flex"
+              : // The notes add no height to their grid row and stretch to fill
+                // it: beside the player they match its height exactly, and
+                // stacked they take the rest of the screen, scrolling inside.
+                "flex h-0 min-h-full min-w-0 overflow-hidden"
           }
         >
           <CourseNotes

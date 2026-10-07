@@ -13,7 +13,7 @@ export default function AppHeader({ onAddVideo }: AppHeaderProps) {
   return (
     <header className="mb-6 flex items-center justify-between gap-2 border-b border-zinc-200/80 pb-4 sm:gap-4 sm:pb-5">
       <h1 className="whitespace-nowrap text-xl font-semibold tracking-tight text-zinc-900 sm:text-3xl">
-        Dashboard
+        My Courses
       </h1>
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         {onAddVideo ? (
