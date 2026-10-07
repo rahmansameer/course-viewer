@@ -454,6 +454,7 @@ export default function WatchPage() {
           <YouTubePlayer
             videoId={video.id}
             currentTime={video.currentTime}
+            savedDuration={video.duration}
             expanded={isWidePlayer}
             onToggleExpanded={toggleWidePlayer}
             onTimeUpdate={saveProgress}

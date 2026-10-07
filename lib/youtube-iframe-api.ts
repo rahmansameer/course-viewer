@@ -99,6 +99,7 @@ declare global {
         PLAYING: number;
         PAUSED: number;
         BUFFERING: number;
+        CUED: number;
       };
     };
     onYouTubeIframeAPIReady?: () => void;

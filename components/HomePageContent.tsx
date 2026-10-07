@@ -304,7 +304,7 @@ function HomePageContent() {
                 type="button"
                 disabled={deleting}
                 onClick={confirmDelete}
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700"
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-[#fff] transition hover:bg-red-700"
               >
                 {deleting ? "Deleting..." : "Delete video"}
               </button>

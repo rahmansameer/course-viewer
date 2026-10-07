@@ -28,6 +28,8 @@ import {
 type YouTubePlayerProps = {
   videoId: string;
   currentTime: number;
+  // Shown in the timeline until the player reports the real duration.
+  savedDuration?: number | null;
   expanded?: boolean;
   onToggleExpanded?: () => void;
   onTimeUpdate: (
@@ -150,6 +152,7 @@ function VideoTimeline({
 export default function YouTubePlayer({
   videoId,
   currentTime,
+  savedDuration = null,
   expanded = false,
   onToggleExpanded,
   onTimeUpdate,
@@ -165,6 +168,9 @@ export default function YouTubePlayer({
   const durationRef = useRef(0);
   const [playerError, setPlayerError] = useState("");
   const [isPlayerReady, setIsPlayerReady] = useState(false);
+  // Keeps the loading overlay up until the video actually starts (or settles
+  // paused/cued), so YouTube's own buffering spinner never shows after ours.
+  const [hasPlaybackSettled, setHasPlaybackSettled] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -348,6 +354,17 @@ export default function YouTubePlayer({
     let cancelled = false;
     setPlayerError("");
     setIsPlayerReady(false);
+    setHasPlaybackSettled(false);
+    let settleTimeout: number | null = null;
+    const isSettledState = (state: number | undefined) => {
+      const states = window.YT?.PlayerState;
+      return (
+        state === states?.PLAYING ||
+        state === states?.PAUSED ||
+        state === states?.ENDED ||
+        state === states?.CUED
+      );
+    };
     setIsPlaying(false);
     setDuration(0);
     durationRef.current = 0;
@@ -397,6 +414,15 @@ export default function YouTubePlayer({
               const state = event.target.getPlayerState?.();
               setIsPlaying(state === states?.PLAYING);
               setIsMuted(event.target.isMuted?.() ?? false);
+              if (isSettledState(state)) {
+                setHasPlaybackSettled(true);
+              } else {
+                // Never leave the overlay up if playback stays unstarted.
+                settleTimeout = window.setTimeout(
+                  () => setHasPlaybackSettled(true),
+                  3000,
+                );
+              }
               // Fall back to the original seek (which also starts playback)
               // if autoplay did not start or the saved position changed while
               // the embed was loading, e.g. newer progress from Supabase.
@@ -414,6 +440,9 @@ export default function YouTubePlayer({
           onStateChange: (event) => {
             const states = window.YT?.PlayerState;
             setIsPlaying(event.data === states?.PLAYING);
+            if (isSettledState(event.data)) {
+              setHasPlaybackSettled(true);
+            }
             readDuration(event.target);
             if (
               event.data === states?.PAUSED ||
@@ -453,6 +482,9 @@ export default function YouTubePlayer({
       cancelled = true;
       flushProgress();
       readyRef.current = false;
+      if (settleTimeout !== null) {
+        window.clearTimeout(settleTimeout);
+      }
       if (saveIntervalRef.current) {
         window.clearInterval(saveIntervalRef.current);
         saveIntervalRef.current = null;
@@ -512,7 +544,7 @@ export default function YouTubePlayer({
         }`}
       >
         <div ref={containerRef} className="h-full w-full" />
-        {!isPlayerReady && !playerError ? (
+        {(!isPlayerReady || !hasPlaybackSettled) && !playerError ? (
           <div
             role="status"
             aria-label="Loading video"
@@ -522,78 +554,76 @@ export default function YouTubePlayer({
           </div>
         ) : null}
       </div>
-      {isPlayerReady || playerError ? (
-        <div
-          role="group"
-          aria-label="Video controls. Space or K plays and pauses, F toggles fullscreen, J rewinds 10 seconds, L skips forward 10 seconds, and the left and right arrow keys seek by 5 seconds."
-          className="flex items-center gap-1 border-t border-zinc-200 bg-white px-2 py-1 text-zinc-900"
-        >
-          <div className="flex shrink-0 items-center gap-0">
-            <button
-              type="button"
-              aria-label={isPlaying ? "Pause video" : "Play video"}
-              title={isPlaying ? "Pause video" : "Play video"}
-              disabled={!isPlayerReady}
-              onClick={togglePlayback}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[15px] text-zinc-800 transition hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Icon
-                icon={isPlaying ? faPause : faPlay}
-              />
-            </button>
-            <button
-              type="button"
-              aria-label={isMuted ? "Unmute video" : "Mute video"}
-              title={isMuted ? "Unmute" : "Mute"}
-              disabled={!isPlayerReady}
-              onClick={toggleMute}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[15px] text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Icon
-                icon={isMuted ? faVolumeXmark : faVolumeHigh}
-              />
-            </button>
-          </div>
-          <VideoTimeline
-            key={videoId}
-            currentTime={currentTime}
-            duration={duration}
-            isPlayerReady={isPlayerReady}
-            isPlaying={isPlaying}
-            getCurrentTime={getCurrentTime}
-            seekTo={seekTo}
-          />
-          {onToggleExpanded ? (
-            <button
-              type="button"
-              aria-label={expanded ? "Exit wide player" : "Expand player"}
-              title={expanded ? "Exit wide player (T)" : "Expand player (T)"}
-              onClick={onToggleExpanded}
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[15px] text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950"
-            >
-              <Icon
-                icon={
-                  expanded
-                    ? faDownLeftAndUpRightToCenter
-                    : faUpRightAndDownLeftFromCenter
-                }
-              />
-            </button>
-          ) : null}
+      <div
+        role="group"
+        aria-label="Video controls. Space or K plays and pauses, F toggles fullscreen, J rewinds 10 seconds, L skips forward 10 seconds, and the left and right arrow keys seek by 5 seconds."
+        className="flex items-center gap-1 border-t border-zinc-200 bg-white px-2 py-1 text-zinc-900"
+      >
+        <div className="flex shrink-0 items-center gap-0">
           <button
             type="button"
-            aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-            title={isFullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}
+            aria-label={isPlaying ? "Pause video" : "Play video"}
+            title={isPlaying ? "Pause video" : "Play video"}
             disabled={!isPlayerReady}
-            onClick={() => void toggleFullscreen()}
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[15px] text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
+            onClick={togglePlayback}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[15px] text-zinc-800 transition hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Icon
-              icon={isFullscreen ? faCompress : faExpand}
+              icon={isPlaying ? faPause : faPlay}
+            />
+          </button>
+          <button
+            type="button"
+            aria-label={isMuted ? "Unmute video" : "Mute video"}
+            title={isMuted ? "Unmute" : "Mute"}
+            disabled={!isPlayerReady}
+            onClick={toggleMute}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[15px] text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Icon
+              icon={isMuted ? faVolumeXmark : faVolumeHigh}
             />
           </button>
         </div>
-      ) : null}
+        <VideoTimeline
+          key={videoId}
+          currentTime={currentTime}
+          duration={duration > 0 ? duration : (savedDuration ?? 0)}
+          isPlayerReady={isPlayerReady}
+          isPlaying={isPlaying}
+          getCurrentTime={getCurrentTime}
+          seekTo={seekTo}
+        />
+        {onToggleExpanded ? (
+          <button
+            type="button"
+            aria-label={expanded ? "Exit wide player" : "Expand player"}
+            title={expanded ? "Exit wide player (T)" : "Expand player (T)"}
+            onClick={onToggleExpanded}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[15px] text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950"
+          >
+            <Icon
+              icon={
+                expanded
+                  ? faDownLeftAndUpRightToCenter
+                  : faUpRightAndDownLeftFromCenter
+              }
+            />
+          </button>
+        ) : null}
+        <button
+          type="button"
+          aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+          title={isFullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}
+          disabled={!isPlayerReady}
+          onClick={() => void toggleFullscreen()}
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[15px] text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Icon
+            icon={isFullscreen ? faCompress : faExpand}
+          />
+        </button>
+      </div>
       {playerError ? (
         <p role="alert" className="p-3 text-sm text-red-700">
           {playerError}
