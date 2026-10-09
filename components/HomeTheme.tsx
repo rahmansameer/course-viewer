@@ -15,7 +15,7 @@ type HomeThemeContextValue = {
   setThemeMode: (mode: ThemeMode) => void;
 };
 
-const THEME_STORAGE_KEY = "course-viewer-home-theme";
+const THEME_STORAGE_KEY = "youtube-course-viewer-home-theme";
 const HomeThemeContext = createContext<HomeThemeContextValue | null>(null);
 
 function getStoredThemeMode(): ThemeMode {

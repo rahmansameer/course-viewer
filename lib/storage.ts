@@ -32,9 +32,9 @@ type VideoRow = {
 };
 
 const LEGACY_STORAGE_KEY = "course-shelf-v1";
-const PLAYBACK_CHECKPOINT_PREFIX = "course-viewer-playback-v1";
-const VIDEO_CACHE_PREFIX = "course-viewer-video-v1";
-const VIDEOS_CACHE_PREFIX = "course-viewer-videos-v1";
+const PLAYBACK_CHECKPOINT_PREFIX = "youtube-course-viewer-playback-v1";
+const VIDEO_CACHE_PREFIX = "youtube-course-viewer-video-v1";
+const VIDEOS_CACHE_PREFIX = "youtube-course-viewer-videos-v1";
 
 const videoCache = new Map<string, VideoRecord>();
 const videosCache = new Map<string, VideoRecord[]>();

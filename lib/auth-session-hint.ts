@@ -1,4 +1,4 @@
-export const AUTH_SESSION_HINT_COOKIE = "course-viewer-session";
+export const AUTH_SESSION_HINT_COOKIE = "youtube-course-viewer-session";
 
 const USER_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

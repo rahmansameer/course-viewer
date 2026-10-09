@@ -3,6 +3,7 @@ import { Roboto } from "next/font/google";
 
 import AuthGate from "@/components/AuthGate";
 import { AUTH_SESSION_HINT_SCRIPT } from "@/lib/auth-session-hint";
+import { STORAGE_MIGRATION_SCRIPT } from "@/lib/storage-migration";
 import "./globals.css";
 
 const roboto = Roboto({
@@ -12,7 +13,7 @@ const roboto = Roboto({
 });
 
 export const metadata: Metadata = {
-  title: "Course Viewer",
+  title: "YouTube Course Viewer",
   description:
     "Personal library for tracking long-form YouTube videos and courses.",
 };
@@ -30,8 +31,9 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `try {
-  const mode = localStorage.getItem("course-viewer-home-theme");
+            __html: `${STORAGE_MIGRATION_SCRIPT}
+try {
+  const mode = localStorage.getItem("youtube-course-viewer-home-theme");
   document.documentElement.dataset.theme =
     mode === "dark" || mode === "light" || mode === "system" ? mode : "system";
 } catch {
