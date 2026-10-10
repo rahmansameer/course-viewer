@@ -30,6 +30,8 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        {/* First in <head> so the browser finds the tab icon right away. */}
+        <link rel="icon" href="/favicon.ico" sizes="16x16 32x32" />
         <script
           dangerouslySetInnerHTML={{
             __html: `${STORAGE_MIGRATION_SCRIPT}
