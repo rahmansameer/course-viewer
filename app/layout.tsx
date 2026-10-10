@@ -3,6 +3,7 @@ import { Roboto } from "next/font/google";
 
 import AuthGate from "@/components/AuthGate";
 import { AUTH_SESSION_HINT_SCRIPT } from "@/lib/auth-session-hint";
+import { SITE_NAME } from "@/lib/site";
 import { STORAGE_MIGRATION_SCRIPT } from "@/lib/storage-migration";
 import "./globals.css";
 
@@ -13,7 +14,7 @@ const roboto = Roboto({
 });
 
 export const metadata: Metadata = {
-  title: "YouTube Course Viewer",
+  applicationName: SITE_NAME,
   description:
     "Personal library for tracking long-form YouTube videos and courses.",
 };

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import AppHeader from "@/components/AppHeader";
 import AddVideoModal from "@/components/AddVideoModal";
+import PageTitle from "@/components/PageTitle";
 import { useAuth } from "@/components/AuthGate";
 import VideoCard from "@/components/VideoCard";
 import {
@@ -76,7 +77,6 @@ function HomePageContent() {
   const [deleteTarget, setDeleteTarget] = useState<VideoRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   const hasCachedVideosRef = useRef(initialData.hasCache);
-
   useEffect(() => {
     if (!userId) {
       return;
@@ -234,6 +234,7 @@ function HomePageContent() {
 
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-4 py-8 md:px-8">
+      <PageTitle name="My Courses" />
       <AppHeader
         onAddVideo={() => {
           setSelectedVideo(null);

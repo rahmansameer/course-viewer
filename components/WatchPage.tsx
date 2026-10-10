@@ -14,6 +14,7 @@ import {
 import Icon from "@/components/Icon";
 import { useAuth } from "@/components/AuthGate";
 import CourseNotes from "@/components/CourseNotes";
+import PageTitle from "@/components/PageTitle";
 import YouTubePlayer from "@/components/YouTubePlayer";
 import {
   cacheVideo,
@@ -363,12 +364,13 @@ export default function WatchPage() {
   );
 
   if (loading) {
-    return null;
+    return <PageTitle name="Watch" />;
   }
 
   if (!video) {
     return (
       <main className="min-h-screen px-4 py-5 sm:px-6 lg:px-8">
+        <PageTitle name={error ? "Could Not Load Video" : "Video Not Found"} />
         <nav className="mb-6">
           <Link
             href="/"
@@ -402,6 +404,7 @@ export default function WatchPage() {
           : "flex min-h-dvh flex-col px-4 py-5 sm:px-6 lg:px-8"
       }
     >
+      <PageTitle name={video.title} />
       {!isWidePlayer ? (
         <nav className="mb-6">
           <Link

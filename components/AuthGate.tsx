@@ -24,6 +24,7 @@ import {
 import type { User } from "@supabase/auth-js";
 
 import Icon from "@/components/Icon";
+import PageTitle from "@/components/PageTitle";
 import profilePhoto from "@/app/profile.jpg";
 import { HomeThemeProvider, useHomeTheme } from "@/components/HomeTheme";
 import {
@@ -151,6 +152,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
 
     return (
       <main className="flex min-h-screen items-center justify-center bg-white px-4">
+        <PageTitle />
         <div className="flex items-center gap-3 text-sm text-zinc-500">
           <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-200 border-t-zinc-800" />
           Connecting to your library
@@ -162,6 +164,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
   if (authError) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-white px-4">
+        <PageTitle name="Error" />
         <div className="max-w-md rounded-xl border border-red-200 bg-red-50 p-5 text-center">
           <Icon
             icon={faCircleExclamation}
@@ -242,6 +245,7 @@ function AuthForm({
   if (confirmationEmail) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-12">
+        <PageTitle name="Check Your Inbox" />
         <section className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-8 sm:p-10">
           <h1 className="text-3xl font-bold tracking-tight text-zinc-950">
             Check your inbox
@@ -274,6 +278,7 @@ function AuthForm({
       data-auth-fallback={hideForStoredSession ? "" : undefined}
       className="flex min-h-screen items-center justify-center bg-zinc-50 px-4 py-12"
     >
+      <PageTitle name={isSignUp ? "Sign Up" : "Sign In"} />
       <section className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-8 sm:p-10">
         <div className="mb-8">
           <h1 className="text-3xl font-bold tracking-tight text-zinc-950">
