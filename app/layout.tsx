@@ -13,6 +13,14 @@ const roboto = Roboto({
   variable: "--font-roboto",
 });
 
+const SUPABASE_ORIGIN = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "").origin;
+  } catch {
+    return null;
+  }
+})();
+
 export const metadata: Metadata = {
   applicationName: SITE_NAME,
   description:
@@ -45,6 +53,10 @@ try {
 ${AUTH_SESSION_HINT_SCRIPT}`,
           }}
         />
+        {SUPABASE_ORIGIN ? (
+          // The library request is CORS, so warm an anonymous connection.
+          <link rel="preconnect" href={SUPABASE_ORIGIN} crossOrigin="anonymous" />
+        ) : null}
         <link rel="preconnect" href="https://www.youtube.com" />
         <link rel="preconnect" href="https://i.ytimg.com" />
       </head>

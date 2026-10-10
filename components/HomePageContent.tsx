@@ -77,8 +77,12 @@ function HomePageContent() {
   const [deleteTarget, setDeleteTarget] = useState<VideoRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   const hasCachedVideosRef = useRef(initialData.hasCache);
+  // Start the library request from the session hint instead of waiting for
+  // Supabase Auth to restore the session; RLS still scopes the rows to the
+  // signed-in account, and a different account re-runs this with its own id.
+  const libraryUserId = cachedUserId;
   useEffect(() => {
-    if (!userId) {
+    if (!libraryUserId) {
       return;
     }
 
@@ -86,7 +90,7 @@ function HomePageContent() {
     if (!hasCachedVideosRef.current) {
       setLoading(true);
     }
-    void loadVideos(userId)
+    void loadVideos(libraryUserId)
       .then((loadedVideos) => {
         if (!cancelled) {
           setVideos((currentVideos) =>
@@ -97,12 +101,12 @@ function HomePageContent() {
           setError("");
           hasCachedVideosRef.current = true;
           try {
-            cacheVideos(userId, loadedVideos);
+            cacheVideos(libraryUserId, loadedVideos);
           } catch (cacheError) {
             setError(
               cacheError instanceof Error
                 ? cacheError.message
-                : "Your course library could not be cached in this tab.",
+                : "Your course library could not be cached on this device.",
             );
           }
 
@@ -127,7 +131,7 @@ function HomePageContent() {
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [libraryUserId]);
 
   const handleSave = async ({
     youtubeUrl,
@@ -184,7 +188,7 @@ function HomePageContent() {
       setError(
         cacheError instanceof Error
           ? cacheError.message
-          : "Your course library could not be cached in this tab.",
+          : "Your course library could not be cached on this device.",
       );
     }
     setSelectedVideo(null);
@@ -218,7 +222,7 @@ function HomePageContent() {
         setError(
           cacheError instanceof Error
             ? cacheError.message
-            : "Your course library could not be cached in this tab.",
+            : "Your course library could not be cached on this device.",
         );
       }
     } catch (deleteError) {
@@ -248,7 +252,23 @@ function HomePageContent() {
         </p>
       ) : null}
 
-      {loading ? null : error && videos.length === 0 ? null : videos.length === 0 ? (
+      {loading && videos.length === 0 ? (
+        <div aria-hidden className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {[0, 1, 2].map((index) => (
+            <div
+              key={index}
+              className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm"
+            >
+              <div className="aspect-video animate-pulse bg-zinc-200" />
+              <div className="space-y-3 p-4 pt-5">
+                <div className="h-5 w-3/4 animate-pulse rounded bg-zinc-200" />
+                <div className="h-2 animate-pulse rounded-full bg-zinc-200" />
+                <div className="h-4 w-1/3 animate-pulse rounded bg-zinc-200" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : loading ? null : error && videos.length === 0 ? null : videos.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-10 text-center shadow-sm">
           <p className="text-lg font-medium text-zinc-700">
             No saved videos yet.

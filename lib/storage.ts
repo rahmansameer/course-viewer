@@ -64,9 +64,12 @@ export function getCachedVideos(userId: string): VideoRecord[] | null {
     return inMemoryVideos;
   }
 
+  // The library lives in localStorage so a fresh visit paints instantly from
+  // the last known copy while it revalidates; older tabs cached it per session.
   let raw: string | null;
   try {
-    raw = window.sessionStorage.getItem(key);
+    raw =
+      window.localStorage.getItem(key) ?? window.sessionStorage.getItem(key);
   } catch (error) {
     throw new Error("The cached course library could not be read.", {
       cause: error,
@@ -99,9 +102,23 @@ export function cacheVideos(userId: string, videos: VideoRecord[]) {
   const key = getVideosCacheKey(userId);
   videosCache.set(key, videos);
   try {
-    window.sessionStorage.setItem(key, JSON.stringify(videos));
+    window.localStorage.setItem(key, JSON.stringify(videos));
+    window.sessionStorage.removeItem(key);
   } catch (error) {
-    throw new Error("The course library could not be cached in this tab.", {
+    throw new Error("The course library could not be cached on this device.", {
+      cause: error,
+    });
+  }
+}
+
+export function clearCachedVideos(userId: string) {
+  const key = getVideosCacheKey(userId);
+  videosCache.delete(key);
+  try {
+    window.localStorage.removeItem(key);
+    window.sessionStorage.removeItem(key);
+  } catch (error) {
+    throw new Error("The cached course library could not be removed.", {
       cause: error,
     });
   }

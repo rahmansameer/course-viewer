@@ -32,6 +32,7 @@ import {
   setAuthSessionHint,
 } from "@/lib/auth-session-hint";
 import { getSupabaseClient, type SupabaseClient } from "@/lib/supabase";
+import { clearCachedVideos } from "@/lib/storage";
 
 type AuthContextValue = {
   user: User | null;
@@ -121,6 +122,10 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signOut();
     if (error) {
       throw error;
+    }
+    if (user) {
+      // The library cache outlives the tab, so don't leave it on a shared device.
+      clearCachedVideos(user.id);
     }
     setAuthSessionHint(null);
   };
